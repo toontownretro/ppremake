@@ -1,0 +1,1342 @@
+<div class="document" id="panda-pre-make-documentation">
+<h1 class="title">Panda Pre-make Documentation</h1>
+<table class="docinfo" frame="void" rules="none">
+<col class="docinfo-name" />
+<col class="docinfo-content" />
+<tbody valign="top">
+<tr><th class="docinfo-name">Author:</th>
+<td>David R. Rose &lt;David.R.Rose&#64;disney.com&gt;</td></tr>
+<tr><th class="docinfo-name">Author:</th>
+<td>Jon Parise &lt;jparise&#64;cmu.edu&gt;</td></tr>
+<tr><th class="docinfo-name">Revision:</th>
+<td>$Revision: $</td></tr>
+</tbody>
+</table>
+<div class="abstract topic">
+<p class="topic-title">Abstract</p>
+<p>The name <cite>ppremake</cite> stands for Panda Pre-make; ppremake is a
+preprocessor that reads a series of source description files and
+generates a series of makefiles (or, potentially, other kinds of
+package build description files, like VC++ project files).</p>
+</div>
+<div class="contents topic" id="table-of-contents">
+<p class="topic-title"><a name="table-of-contents">Table of Contents</a></p>
+<ul class="auto-toc simple">
+<li><a class="reference" href="#philosophy" id="id1" name="id1">1 Philosophy</a><ul class="auto-toc">
+<li><a class="reference" href="#why-ppremake" id="id2" name="id2">1.1 Why ppremake?</a></li>
+<li><a class="reference" href="#what-is-ppremake-exactly" id="id3" name="id3">1.2 What is ppremake, exactly?</a></li>
+<li><a class="reference" href="#source-tree-and-install-tree-hierarchy" id="id4" name="id4">1.3 Source tree and install tree hierarchy</a></li>
+<li><a class="reference" href="#an-alternative-install-tree-philosophy" id="id5" name="id5">1.4 An alternative install tree philosophy</a></li>
+<li><a class="reference" href="#ppremake-variables-to-support-either-philosophy" id="id6" name="id6">1.5 ppremake variables to support either philosophy</a></li>
+</ul>
+</li>
+<li><a class="reference" href="#process" id="id7" name="id7">2 Process</a></li>
+<li><a class="reference" href="#syntax" id="id8" name="id8">3 Syntax</a><ul class="auto-toc">
+<li><a class="reference" href="#named-scopes" id="id9" name="id9">3.1 Named Scopes</a></li>
+<li><a class="reference" href="#ppremake-commands" id="id10" name="id10">3.2 ppremake Commands</a><ul class="auto-toc">
+<li><a class="reference" href="#simple-commands" id="id11" name="id11">3.2.1 Simple commands</a></li>
+<li><a class="reference" href="#conditional-commands" id="id12" name="id12">3.2.2 Conditional commands</a></li>
+<li><a class="reference" href="#block-commands" id="id13" name="id13">3.2.3 Block commands</a></li>
+</ul>
+</li>
+<li><a class="reference" href="#variable-references" id="id14" name="id14">3.3 Variable References</a><ul class="auto-toc">
+<li><a class="reference" href="#ordinary-variable-references" id="id15" name="id15">3.3.1 Ordinary variable references</a></li>
+<li><a class="reference" href="#map-variables" id="id16" name="id16">3.3.2 Map variables</a></li>
+<li><a class="reference" href="#function-calls" id="id17" name="id17">3.3.3 Function calls</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference" href="#variables" id="id18" name="id18">4 Variables</a></li>
+</ul>
+</div>
+<div class="section" id="philosophy">
+<h1><a class="toc-backref" href="#id1" name="philosophy">1 Philosophy</a></h1>
+<div class="section" id="why-ppremake">
+<h2><a class="toc-backref" href="#id2" name="why-ppremake">1.1 Why ppremake?</a></h2>
+<p>We needed something like ppremake to meet our complex multi-platform
+build requirements.  Panda should be built in different ways according
+to platform:</p>
+<blockquote>
+<ul class="simple">
+<li>On Unix systems that support shared libraries (.so files), each
+subdirectory becomes a different .so file.  This provides the
+maximum convenience while developing; local changes remain local
+to a particular .so file and don't require relinking of the
+whole thing.</li>
+<li>On Windows systems, the number of shared libraries (.dll files)
+must be reduced to minimize overhead, as well as to allow STL to
+work properly between different subdirectories within a package.
+(In VC6, STL constructs other than vectors do not work between
+different DLL's.)  Thus, we must define a number of 'metalib'
+objects that each represents a set of subdirectories that are to
+be linked into one DLL.</li>
+<li>On systems that do not support shared libraries at all, or for
+developers who do not wish to use them, each subdirectory
+becomes a static library.</li>
+</ul>
+</blockquote>
+<p>Also, it should be possible to build Panda natively on each platform,
+without having to install Unix tools (e.g. Cygwin).  This means that
+we cannot depend on common Unix tools and commands (like <cite>install</cite>,
+<cite>cp</cite>, <cite>mv</cite>) being present, and makes it difficult to define one set of
+makefiles for all platforms.  Furthermore, the use of makefiles
+themselves is not universal; Windows developers are used to using VC++
+project files to define the build relationships, and may resist a
+command-line based build system using makefiles.</p>
+<p>Finally, the relationships between source files should be recorded
+only once; it won't do to have to maintain a set of makefiles for Unix
+systems and a separate set of VC++ project files for Windows systems.
+This invites error and accidental omissions on one side or the other.</p>
+</div>
+<div class="section" id="what-is-ppremake-exactly">
+<h2><a class="toc-backref" href="#id3" name="what-is-ppremake-exactly">1.2 What is ppremake, exactly?</a></h2>
+<p>By design, ppremake is more of a scripting language framework than a
+specific application.  It is intended to contain as few assumptions as
+possible about the structure of the source tree it is processing or
+the precise nature of the makefiles (or other build scripts) it is
+generating.</p>
+<p>The ppremake executable is hardcoded to define a set of useful
+predefined variables and functions, and to follow a particular
+procedure to get started scanning a source directory when it is
+invoked.  However, once it is started, the actual behavior of
+ppremake, including the meaning of all the variables defined within
+the various <tt class="literal"><span class="pre">Sources.pp</span></tt> files (see below) and all of the generated
+output, is almost entirely controlled by scripts written in its own
+scripting language.  Most of these control scripts are defined in the
+directory <tt class="literal"><span class="pre">$DTOOL/pptempl</span></tt>.</p>
+</div>
+<div class="section" id="source-tree-and-install-tree-hierarchy">
+<h2><a class="toc-backref" href="#id4" name="source-tree-and-install-tree-hierarchy">1.3 Source tree and install tree hierarchy</a></h2>
+<p>The layout of the source tree and of the install tree for Panda are
+strongly influenced by the Unix convention for open source projects,
+particularly as standardized by GNU.  This convention has a long
+history and is widely understood by open source developers.</p>
+<p>The complete source hierarchy available on SourceForge consists of a
+collection of packages, with names like <cite>dtool</cite>, <cite>panda</cite>, <cite>pandatool</cite>,
+and <cite>direct</cite>; each package is the root of a separate buildable
+hierarchy that includes a <cite>src</cite> and a <cite>metalibs</cite> directory; within
+these directories, the source files themselves are distributed
+logically among a number of further subdirectories.  The structure
+looks something like this:</p>
+<pre class="literal-block">
+panda3d/README
+panda3d/dtool/
+panda3d/dtool/Package.pp
+panda3d/dtool/Sources.pp
+panda3d/dtool/src/
+...
+panda3d/panda/
+panda3d/panda/Package.pp
+panda3d/panda/Sources.pp
+panda3d/panda/src/
+panda3d/panda/src/Sources.pp
+panda3d/panda/src/express/
+panda3d/panda/src/express/Sources.pp
+panda3d/panda/src/express/typedObject.cxx
+panda3d/panda/src/express/typedObject.h
+...
+panda3d/panda/metalibs/
+panda3d/panda/metalibs/Sources.pp
+panda3d/panda/metalibs/pandaexpress/
+panda3d/panda/metalibs/pandaexpress/Sources.pp
+panda3d/panda/metalibs/pandaexpress/pandaexpress.cxx
+...
+</pre>
+<p>Note that there is a file called <tt class="literal"><span class="pre">Sources.pp</span></tt> in each subdirectory
+within the hierarchy, and there is a <tt class="literal"><span class="pre">Package.pp</span></tt> at the root of
+each package.  These files define the build relationships among all
+the source files in the hierarchy, and are the input files read by
+ppremake to generate makefiles.</p>
+<p>Once the source tree is unpacked, the user's first step (after
+customizing the local configuration requirements by setting up a local
+<tt class="literal"><span class="pre">Config.pp</span></tt> file) will be to <cite>cd</cite> into the root of one of the
+packages -- typically <cite>dtool</cite>, which must be built before any of the
+others -- and run <tt class="literal"><span class="pre">ppremake</span></tt> to generate all of the makefiles for
+that package.  (This is akin to running <tt class="literal"><span class="pre">./configure</span></tt> within the
+root of a package for most GNU software.  Unfortunately, Panda cannot
+easily take advantage of GNU's autoconf scripts, because of its
+difficult multiplatform requirements.)</p>
+<p>Once the package has been configured, the user can build the entire
+package with the command <tt class="literal"><span class="pre">make</span></tt> (or <tt class="literal"><span class="pre">nmake</span></tt> in a non-Cygwin
+Windows environment).  The source files within the tree are compiled
+in place.  At this point, nothing has yet been installed publicly.  In
+most Unix/GNU packages, the user may at this point run any
+applications built within the tree prior to installation, but Panda
+relies too heavily on shared libraries to make this work reliably.
+You must <tt class="literal"><span class="pre">make</span> <span class="pre">install</span></tt> before you can execute any of the
+applications within the Panda package.</p>
+<p>Installing the package with <tt class="literal"><span class="pre">make</span> <span class="pre">install</span></tt> (or <tt class="literal"><span class="pre">nmake</span> <span class="pre">install</span></tt>)
+copies to a public location all of the files that are necessary to
+make use of the package, either for running applications or building
+new applications.  This includes all the executables (.exe files) as
+well as shared libraries (<tt class="literal"><span class="pre">.dll</span></tt> or <tt class="literal"><span class="pre">.so</span></tt> files) for runtime, as
+well as header files (<tt class="literal"><span class="pre">.h</span></tt> files) and static libraries (<tt class="literal"><span class="pre">.lib</span></tt> or
+<tt class="literal"><span class="pre">.a</span></tt> files) for building new applications.</p>
+<p>The location to which these files are installed is specified by the
+user in the local <tt class="literal"><span class="pre">Config.pp</span></tt> file; the common Unix convention is to
+install these in the directory <tt class="literal"><span class="pre">/usr/local/panda</span></tt>.  The executables
+will go into <tt class="literal"><span class="pre">/usr/local/panda/bin</span></tt>, the static and dynamic
+libraries into <tt class="literal"><span class="pre">/usr/local/panda/lib</span></tt>, and the header files into
+<tt class="literal"><span class="pre">/usr/local/panda/include</span></tt>.  Note that all packages within the
+source hierarchy, including dtool, panda, pandatool, and direct, will
+be installed into the <em>same</em> public install tree, whether it is called
+<tt class="literal"><span class="pre">/usr/local/panda</span></tt> or something else.  (On a Windows environment the
+directory name <tt class="literal"><span class="pre">/usr/local/panda</span></tt> may be inappropriate.  It is up to
+the user to specify a suitable directory name.  We suggest
+<tt class="literal"><span class="pre">C:\panda.</span></tt>)</p>
+<p>Once <cite>dtool</cite> has been built and installed, the next step is to <cite>cd</cite> to
+the <cite>panda</cite> package, <tt class="literal"><span class="pre">ppremake</span></tt>, and <tt class="literal"><span class="pre">make</span></tt> followed by <tt class="literal"><span class="pre">make</span>
+<span class="pre">install</span></tt>, and so on with the <cite>direct</cite> and/or <cite>pandatool</cite> packages.
+All of these packages will be installed into <tt class="literal"><span class="pre">/usr/local/panda</span></tt> (or
+whichever directory the user specified as the install tree).</p>
+</div>
+<div class="section" id="an-alternative-install-tree-philosophy">
+<h2><a class="toc-backref" href="#id5" name="an-alternative-install-tree-philosophy">1.4 An alternative install tree philosophy</a></h2>
+<p>Installing all the packages to the same install tree works well for
+the outside developer who is primarily interested in taking the whole
+body of code as a complete piece, but we have different needs for our
+own in-house development.  It is convenient to be able to treat the
+individual packages separately; our in-house <cite>attach</cite> scripts (not
+included with the distribution) allow us to use one of several
+automatically-built trees for development, or upon need, to switch
+on-the-fly to using our own personally built tree.</p>
+<p>In order to make this work, the source tree and the install tree must
+become the same thing.  When we are developing in-house, <tt class="literal"><span class="pre">make</span>
+<span class="pre">install</span></tt> copies all the relevant files to the <cite>bin</cite>, <cite>lib</cite>, and
+<cite>include</cite> subdirectories of the root of the source package, instead of
+to a common public install directory.  This allows us to easily
+mix-and-match the files from packages built at various times.</p>
+</div>
+<div class="section" id="ppremake-variables-to-support-either-philosophy">
+<h2><a class="toc-backref" href="#id6" name="ppremake-variables-to-support-either-philosophy">1.5 ppremake variables to support either philosophy</a></h2>
+<p>Variables are defined in ppremake either with the appropriate #define
+or <tt class="literal"><span class="pre">#defer</span></tt> command in the local <tt class="literal"><span class="pre">Config.pp</span></tt>, or in the absence of
+this, they are taken from environment variables.</p>
+<p>In the normal, install-in-one-place philosophy, the user should define
+only <tt class="literal"><span class="pre">INSTALL_DIR</span></tt>, which indicates the root directory name all
+packages will be installed to.  In the alternative philosophy, used
+in-house, the environment variables <tt class="literal"><span class="pre">DTOOL</span></tt>, <tt class="literal"><span class="pre">PANDA</span></tt>, <tt class="literal"><span class="pre">DIRECT</span></tt>,
+etc. should be defined, which indicate the location of the source
+directories for each of the various trees.</p>
+<p>In either case, the various <tt class="literal"><span class="pre">Package.pp</span></tt> scripts will define the
+following ppremake variables appropriately:</p>
+<pre class="literal-block">
+DTOOL_INSTALL
+PANDA_INSTALL
+DIRECT_INSTALL
+(etc).
+</pre>
+<p>The above indicate the directories in which files from each tree
+should be installed.  In the normal philosophy, these will all contain
+the same string, the same thing specified by <tt class="literal"><span class="pre">INSTALL_DIR</span></tt>:</p>
+<pre class="literal-block">
+DTOOL_INSTALL_OTHER
+PANDA_INSTALL_OTHER
+DIRECT_INSTALL_OTHER
+(etc).
+</pre>
+<p>These variables have the same meaning as the above, except that they
+are intended to be used from a different package.  That is, if code in
+the Panda source tree needs to reference an installed file from Dtool,
+it should expect to find it in <tt class="literal"><span class="pre">$[DTOOL_INSTALL_OTHER]</span></tt>.</p>
+</div>
+</div>
+<div class="section" id="process">
+<h1><a class="toc-backref" href="#id7" name="process">2 Process</a></h1>
+<p>The following steps are executed when ppremake is invoked:</p>
+<blockquote>
+<ol class="arabic">
+<li><p class="first">Look in the current directory for a file called Package.pp.  If
+it is not found, but Sources.pp is present in the current
+directory, then look for Package.pp in the parent directory.
+Repeat until Package.pp is located; this is the root of the
+source directory hierarchy.</p>
+</li>
+<li><p class="first">Read and interpret the Package.pp file.  This should, in turn,
+read in (via the <tt class="literal"><span class="pre">#include</span></tt> directive; see below) whatever other
+configuration scripts are relevant to the current package.  The
+exact behavior of Package.pp is not hardcoded into ppremake, but
+the Package.pp scripts for each of the Panda directories will
+ultimately include the following files in order:</p>
+<pre class="literal-block">
+Any Package.pp for a dependent tree (e.g. $PANDA/Package.pp, etc.)
+$DTOOL/Package.pp
+$DTOOL/Config.pp
+$DTOOL/Config.Platform.pp
+The user's Config.pp file, as specified by $PPREMAKE_CONFIG.
+$DTOOL/pptempl/System.pp
+</pre>
+<p>The various Package.pp files are designed to cascade down, such
+that when you invoke ppremake from a high-level tree, such as
+Direct (for instance), ppremake invokes $DIRECT/Package.pp, which
+in turn invokes $PANDA/Package.pp, which in turn invokes
+$DTOOL/Package.pp.  At the bottom level, $DTOOL/Package.pp does
+most of the remaining setup work, in particular including the
+various Config.pp files, and System.pp.</p>
+<p>The Config.pp files are intended to define the variables the user
+might customize for a particular build environment; the user's
+personal Config.pp file is included last, and may override any of
+the default values defined in the system Config.pp files.</p>
+<p>One particularly critical variable that is defined by Config.pp
+is <tt class="literal"><span class="pre">$[BUILD_TYPE]</span></tt>.  This represents the type of makefile rules
+that are to be generated, e.g. &quot;unix&quot; to generate standard
+Unix-style makefile syntax, or &quot;msvc&quot; to generate syntax specific
+to Microsoft's nmake.  The particular string specified here
+controls the selection of which Template files are to be loaded
+in a later step to actually generate output files in each source
+directory.</p>
+<p>The System.pp file is also essential and defines a few more
+variables that ppremake will be looking for during its execution.
+This tells ppremake the names of certain critical files that it
+needs to include.  The use of System.pp to define these
+filenames, instead of hardcoding them into ppremake, is
+consistent with the ppremake philosophy of letting as much of its
+behavior as possible be controlled from within the scripting
+language itself.</p>
+</li>
+<li><p class="first">Once Package.pp has been read, traverse the entire source
+hierarchy, and read each Sources.pp file.  A separate named scope
+is defined for each Sources.pp file; the name of the scope is
+taken from the name of the directory containing the file.</p>
+</li>
+<li><p class="first">Read in the global variable declarations.  This is loaded from a
+particular file specified by System.pp; this file defines global
+declarations that will be useful when processing each Template
+file later.  To save time, this file is read once and stored in a
+global scope, rather than re-read with each Template file.  The
+particular filename is specified by the ppremake variable
+<tt class="literal"><span class="pre">$[GLOBAL_FILE]</span></tt>, which was set by System.pp; normally this is
+$DTOOL/pptempl/Global.pp.</p>
+<p><tt class="literal"><span class="pre">$DTOOL/pptempl/Global.pp</span></tt> will, in turn, also read in the file
+<tt class="literal"><span class="pre">$DTOOL/pptempl/Global.$[BUILD_TYPE].pp</span></tt> if it exists, which
+may specify further global declarations that are specific to the
+particular build type in effect.  Remember, <tt class="literal"><span class="pre">$[BUILD_TYPE]</span></tt> was
+specified when Config.pp was read, and controls the particular
+type of makefiles or build scripts that are to be generated.</p>
+</li>
+<li><p class="first">Build the inter-directory dependency chain.  This is the chain of
+relationships between different directories within the source
+hierarchy.  Each directory may depend on code from zero or more
+other directories within the same package.  (That is, a directory
+may include header files defined within another directory, and/or
+require linking with a library built in that directory.)</p>
+<p>This inter-directory dependency is critical to determine things
+such as build order.  If one directory must be built before
+another directory, the makefiles must be constructed with this
+relationship explicit.</p>
+<p>This relationship is determined for each directory by executing
+the script named by <tt class="literal"><span class="pre">$[DEPENDS_FILE]</span></tt> (this variable was set by
+System.pp) within each source directory scope.  Remember, each
+Sources.pp file has already been read in, and assigned its own
+unique named scope.  The <tt class="literal"><span class="pre">DEPENDS_FILE</span></tt> script is responsible for
+defining the variable <tt class="literal"><span class="pre">$[DEPEND_DIRS]</span></tt> to contain the
+space-separated list of directories (that is, named scopes) that
+the files in this current directory depend on.</p>
+<p>Normally, System.pp sets <tt class="literal"><span class="pre">$[DEPENDS_FILE]</span></tt> to
+<tt class="literal"><span class="pre">$DTOOL/pptempl/Depends.pp</span></tt>.  This script builds up
+<tt class="literal"><span class="pre">$[DEPEND_DIRS]</span></tt> based on the <tt class="literal"><span class="pre">$[get_depend_libs]</span></tt> function
+which is defined in Global.pp, which is in turn based on
+variables like <tt class="literal"><span class="pre">$[LOCAL_LIBS]</span></tt> defined within the Sources.pp
+file.</p>
+<p>The inter-directory dependency information can be accessed from
+within ppremake scripts simply by examining the
+<tt class="literal"><span class="pre">$[DEPEND_DIRS]</span></tt> variable within the appropriate scope.  In
+addition, the directory relationships are automatically used to
+sort the variables <tt class="literal"><span class="pre">$[SUBDIR]</span></tt> and <tt class="literal"><span class="pre">$[SUBTREE]</span></tt> in order,
+such that each directory is listed after the directories it
+depends on.</p>
+<p>There is one other variable which should be defined by the
+<tt class="literal"><span class="pre">DEPENDS_FILE</span></tt> script: <tt class="literal"><span class="pre">$[DEPENDABLE_HEADERS]</span></tt> should list
+the source files within the current directory that may be named
+as <tt class="literal"><span class="pre">#include</span></tt> files in other files.  This is used to build
+file-level dependencies to support the <tt class="literal"><span class="pre">$[dependencies]</span></tt>
+built-in function, and is not related to inter-directory
+dependencies.</p>
+</li>
+<li><p class="first">Finally, generate the actual output files in each source
+directory.  This is done by executing the script named by
+<tt class="literal"><span class="pre">$[TEMPLATE_FILE]</span></tt> (set by System.pp) within each source
+directory scope.</p>
+<p>Normally, System.pp sets <tt class="literal"><span class="pre">$[TEMPLATE_FILE]</span></tt> to
+<tt class="literal"><span class="pre">$DTOOL/pptempl/Template.$[BUILD_TYPE].pp</span></tt>.  Recall again that
+<tt class="literal"><span class="pre">$[BUILD_TYPE]</span></tt> was specified when Config.pp was read, and
+controls the particular type of makefiles or build scripts that
+are to be generated, so there is a different Template script file
+for each supported build type.</p>
+<p>The Template file is responsible for generating the actual
+makefile (or whatever build script is required) as appropriate to
+each source directory.  It now has all the information required:
+all source directories have been read, so the relationships
+between different source directories can control the output;
+also, the inter-directory and inter-file dependencies are
+available.</p>
+<p>Generally, a Template file will include at least one #output
+directive to generate the appropriate makefile for this
+directory.  Since there may be different kinds of source
+directories, each with very different makefile requirements, the
+Template files usually have one large #if condition based on the
+value of <tt class="literal"><span class="pre">$[DIR_TYPE]</span></tt>, which is set within each Sources.pp
+(and is set in System.pp to default to <cite>src</cite>).</p>
+</li>
+</ol>
+</blockquote>
+</div>
+<div class="section" id="syntax">
+<h1><a class="toc-backref" href="#id8" name="syntax">3 Syntax</a></h1>
+<div class="section" id="named-scopes">
+<h2><a class="toc-backref" href="#id9" name="named-scopes">3.1 Named Scopes</a></h2>
+<p>Any discussion of ppremake script syntax must begin with an
+introduction to ppremake's concept of named scopes.  This concept is
+relied on heavily within ppremake scripts and is the source of most of
+the scripting language's power.</p>
+<p>Like many block-scoped languages, ppremake can support arbitrary
+nesting levels of scopes.  Each nested scope can access variables in
+the outer scopes, and can define new variables that are local to that
+scope.</p>
+<p>In ppremake, there is one (unnamed) global scope, in which all the
+variables defined in Global.pp and related files are declared.  There
+are also a number of individually named scopes, one scope for each
+directory in the source hierarchy that contains a Sources.pp file.
+Each of these scopes is a child of the global scope, each of these
+defines the variables defined within its Sources.pp file.  The name of
+each scope is the name of the directory, with a trailing slash.</p>
+<p>For instance, imagine the following simple directory hierarchy:</p>
+<pre class="literal-block">
+root
+root/Package.pp
+root/Sources.pp
+root/apple
+root/apple/Sources.pp
+root/apple/pear
+root/apple/pear/Sources.pp
+root/banana
+root/banana/Sources.pp
+</pre>
+<p>In this example, there will be five scopes, ordered like this:</p>
+<pre class="literal-block">
+      global scope
+            |
+  +------+--+--+-----+
+  |      |     |     |
+root/  apple/ pear/ banana/
+</pre>
+<p>That is, there is an unnamed global scope, and four named scopes, one
+for each of the four Sources.pp files: &quot;root/&quot;, &quot;apple/&quot;, &quot;pear/&quot;, and
+&quot;banana/&quot;.  Each of the named scopes is a sibling of the others, with
+no relation to the directory hierarchy; all of the named scopes are
+children of the global scope.  (The trailing slash is used to
+differentiate these automatically-created named scopes from explicit
+nested scopes, described below.)</p>
+<p>It is possible to access, from any one of the scopes, variables that
+are defined in another scope.  The syntax to do this is discussed in
+more detail below, but for instance the expression <tt class="literal"><span class="pre">$[FOO(apple/)]</span></tt>
+returns the value of <tt class="literal"><span class="pre">$[FOO]</span></tt> as if it were evaluated within the
+&quot;apple&quot; scope.</p>
+<p>Although all of the automatically-created named scopes are given a
+flat hierarchy, it is possible to define further nested scopes with
+the #begin .. #end syntax (described below) within any of the
+Sources.pp files.  For instance, in the apple/Sources.pp file, you may
+have the syntax:</p>
+<pre class="literal-block">
+#define var1 abc
+#define var2 def
+
+#begin foo
+  #define var2 123
+  #define var3 456
+#end foo
+</pre>
+<p>This adds a new named scope called &quot;foo&quot;, which is a child of
+&quot;apple/&quot;:</p>
+<pre class="literal-block">
+      global scope
+            |
+  +------+--+--+-----+
+  |      |     |     |
+root/  apple/ pear/ banana/
+         |
+        foo
+</pre>
+<p>Within the apple scope, this new named scope can be referenced by the
+name &quot;foo&quot;; within other scopes, it must be referenced explicitly as
+&quot;apple/foo&quot;.  In the example, the value of $[var2(apple/)] is &quot;def&quot;,
+but the value of $[var2(apple/foo)] is &quot;123&quot;.</p>
+</div>
+<div class="section" id="ppremake-commands">
+<h2><a class="toc-backref" href="#id10" name="ppremake-commands">3.2 ppremake Commands</a></h2>
+<p>The following commands are available in ppremake scripts.  The
+commands are similar in syntax to C preprocessor directives: each
+command must be given one per line, with a hash mark (#) as the first
+non-blank character of the line.</p>
+<div class="section" id="simple-commands">
+<h3><a class="toc-backref" href="#id11" name="simple-commands">3.2.1 Simple commands</a></h3>
+<dl>
+<dt><tt class="literal"><span class="pre">#format</span> <span class="pre">&lt;format&gt;</span></tt></dt>
+<dd><p class="first">Defines the type of file that is to be generated by the next
+#output command (see #output, below).  The <cite>&lt;format&gt;</cite> string must
+evaluate to one of a number of strings that are predefined within
+ppremake.  Presently, this may be one of the following:</p>
+<blockquote class="last">
+<dl>
+<dt>straight</dt>
+<dd>The output file is generated exactly as given, without any
+additional formatting.</dd>
+<dt>collapse</dt>
+<dd>Multiple consecutive blank lines are collapsed into one
+blank line, but otherwise the output is generated exactly
+as given.</dd>
+<dt>makefile</dt>
+<dd>The output file is a makefile.  This implies that multiple
+consecutive blank lines may be collapsed, and long lines
+(particularly variable assignment lines) may be folded
+with the backslash character for readability.</dd>
+</dl>
+</blockquote>
+</dd>
+<dt><tt class="literal"><span class="pre">#print</span> <span class="pre">&lt;text&gt;</span></tt></dt>
+<dd>Outputs the indicated text to standard error as soon as it is
+encountered.  This is useful for debugging ppremake scripts; and
+is also a good way to report warnings or status information to the
+user.</dd>
+<dt><tt class="literal"><span class="pre">#printvar</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">[&lt;varname2&gt;</span> <span class="pre">...</span> <span class="pre">]</span></tt></dt>
+<dd><p class="first">Outputs the literal contents of the named variable(s) to standard
+error.  The output is similar to what you would get if you
+executed:</p>
+<pre class="literal-block">
+#print &lt;varname&gt; = &quot;$[&lt;varname&gt;]&quot;
+</pre>
+<p class="last">except the variable contents are not themselves expanded, making
+it possible to view the exact literal contents of the variables.
+Note that the variable names should be given without the enclosing
+<tt class="literal"><span class="pre">$[</span> <span class="pre">...</span> <span class="pre">]</span></tt> syntax.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#mkdir</span> <span class="pre">&lt;dirname&gt;</span> <span class="pre">[&lt;dirname2&gt;</span> <span class="pre">...</span> <span class="pre">]</span></tt></dt>
+<dd>Creates the indicated directory names, if they do not already
+exist.  This will also implicitly create any intervening directory
+names that are necessary.</dd>
+<dt><tt class="literal"><span class="pre">#include</span> <span class="pre">&lt;filename&gt;</span></tt></dt>
+<dd>Includes the named file.  As in all the other commands given here,
+the angle brackets are not part of the literal syntax; don't
+confuse this with the C <tt class="literal"><span class="pre">#include</span></tt> statement.  Instead,
+<cite>&lt;filename&gt;</cite> means any ppremake expression which can be evaluated
+to a string.  If the file does not exist, an error is generated.</dd>
+<dt><tt class="literal"><span class="pre">#sinclude</span> <span class="pre">&lt;filename&gt;</span></tt></dt>
+<dd>Includes the named file if it exists, or quietly ignores it if it
+does not.  This can be used to include an optional configuration
+file if it exists.</dd>
+<dt><tt class="literal"><span class="pre">#call</span> <span class="pre">&lt;subroutine&gt;</span> <span class="pre">&lt;params&gt;</span></tt></dt>
+<dd>Calls the named subroutine immediately.  Here <cite>&lt;subroutine&gt;</cite> is
+the name of the subroutine to call, and <cite>&lt;params&gt;</cite> is the
+comma-separated list of expressions to subsitute in for the
+subroutine's formal parameters.  The subroutine must have
+previously been defined with the <tt class="literal"><span class="pre">#defsub</span></tt> command (see below).</dd>
+<dt><tt class="literal"><span class="pre">#error</span> <span class="pre">&lt;text&gt;</span></tt></dt>
+<dd>Generates an error and immediately terminates ppremake, reporting
+the indicated error message.  Usually this appears within an #if
+.. #endif block testing for an unexpected error condition.  It may
+also be used during debugging.</dd>
+<dt><tt class="literal"><span class="pre">#define</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">&lt;value&gt;</span></tt></dt>
+<dd><p class="first">Declares a new variable within the current scope with the
+indicated name, and sets it to the indicated value.  Variables and
+expressions within <cite>&lt;value&gt;</cite> are evaluated immediately, and the
+resulting string is stored as the new variable's value.</p>
+<p>If there was already a variable within the current scope with this
+name, that variable is replaced with the new value.  However, if
+there was a variable by the same name in an enclosing scope, the
+variable in the scope above is left unchanged, and a new variable
+is defined within the current scope, shadowing the variable above.</p>
+<p class="last">Note that <cite>&lt;varname&gt;</cite> in the above does not include the dollar
+sign and square bracket syntax.  This syntax is used when
+evaluating variables, not when referring to them by name.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#defer</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">&lt;value&gt;</span></tt></dt>
+<dd><p class="first">Behaves the same as #define, but variables and expressions within
+<cite>&lt;value&gt;</cite> are not evaluated immediately.  Instead, the <cite>&lt;value&gt;</cite>
+string is assigned to the variable exactly as it is now.  When the
+variable is evaluated later, expressions appearing within the
+string will be evaluated at that time.  This behaves kind of like
+a simple function declaration: the variable's literal value
+depends on the values of the expressions it depends on, which may
+be modified at any subsequent point (thus changing the value of
+the variable correspondingly).</p>
+<p class="last">This operation is equivalent to VARIABLE = VALUE syntax in GNU
+make (and in most makefile syntax).  On the other hand, #define is
+equivalent to VARIABLE := VALUE in GNU make.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#set</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">&lt;value&gt;</span></tt></dt>
+<dd><p class="first">Changes the value of an existing variable to the indicated value.
+Like #define, variables and expressions within <cite>&lt;value&gt;</cite> are
+evaluated immediately.</p>
+<p class="last">This is different from #define in that (a) the variable must
+already exist (i.e. it has appeared as the target of a previous
+<tt class="literal"><span class="pre">#define</span></tt> or <tt class="literal"><span class="pre">#defer</span></tt>), and (b) it is possible to change the
+value of a variable in an enclosing scope (as opposed to
+<tt class="literal"><span class="pre">#define</span></tt> and <tt class="literal"><span class="pre">#defer</span></tt>, which can only shadow a variable in an
+enclosing scope, but cannot change the parent variable itself).</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#push</span> <span class="pre">&lt;count&gt;</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">[&lt;varname2&gt;</span> <span class="pre">...</span> <span class="pre">]</span></tt></dt>
+<dd><p class="first">Copies the definition of the named variable(s) into the enclosing
+dynamic scope.  This is primarily useful for defining variables
+within an <tt class="literal"><span class="pre">#forscopes</span></tt> or <tt class="literal"><span class="pre">#formap</span></tt> block that must be
+preserved outside the block; normally, since the code within these
+blocks executes within a different scope, invoking the <tt class="literal"><span class="pre">#define</span></tt>
+command within these blocks will define a variable only within the
+referenced scope, and the variable will not be available outside
+the block.</p>
+<p class="last">The solution is to &quot;push&quot; the variable definition into the
+immediately enclosing block, which will be the body of the
+function that invoked the <tt class="literal"><span class="pre">#forscopes</span></tt> command.  It will be as
+if the variable were defined immediately outside the
+<tt class="literal"><span class="pre">#forscopes</span></tt>.  Normally, a count of 1 should be used; if
+multiple nested blocks must be pushed through, the count can be
+increased to indicated the number of levels of nesting.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#map</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">&lt;key_varname&gt;(&lt;scope_names&gt;)</span></tt></dt>
+<dd><p class="first">Defines a new map variable.  A map variable is a unique construct
+in ppremake which associates scopes with named keys.  See the
+discussion on map variables, below.</p>
+<p class="last">Note that, like <tt class="literal"><span class="pre">#define</span></tt>, <tt class="literal"><span class="pre">#defer</span></tt>, and <tt class="literal"><span class="pre">#set</span></tt>, <cite>&lt;varname&gt;</cite>
+and <cite>&lt;key_varname&gt;</cite> in the above do not include the dollar sign
+and square bracket syntax.  This syntax is used when evaluating
+variables, not when referring to them by name.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#addmap</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">&lt;key&gt;</span></tt></dt>
+<dd>Adds a new entry to the indicated map variable, mapping the
+indicated key string to the current scope.  This command should
+normally appear within a #forscopes .. #end block, to add a series
+of keys for each of a number of different scopes.</dd>
+<dt><tt class="literal"><span class="pre">#concatcxx</span> <span class="pre">&lt;outputfilename&gt;</span>, <span class="pre">&lt;symbolname&gt;</span>, <span class="pre">[&lt;inputfilename1&gt;</span> <span class="pre">...</span> <span class="pre">]</span></tt></dt>
+<dd>Creates a single C++ file which contains a const char[] containing the bytes from one or more input files.</dd>
+</dl>
+</div>
+<div class="section" id="conditional-commands">
+<h3><a class="toc-backref" href="#id12" name="conditional-commands">3.2.2 Conditional commands</a></h3>
+<dl>
+<dt><tt class="literal"><span class="pre">#if</span> <span class="pre">&lt;expr&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#elif</span> <span class="pre">&lt;expr&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#else</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#endif</span></tt></dt>
+<dd><p class="first">This defines a block of code that should only be executed if the
+condition is met.  The usual semantics apply: in the case of
+<tt class="literal"><span class="pre">#if</span></tt>, the immediately following code is executed only if
+<cite>&lt;expr&gt;</cite> evaluates true; otherwise, the condition for any
+subsequent <tt class="literal"><span class="pre">#elif</span></tt> commands are tested, until one is found that
+evaluates true.  If no <tt class="literal"><span class="pre">#elif</span></tt> condition evaluates true, the
+code under <tt class="literal"><span class="pre">#else</span></tt> is executed; in any case, normal evaluation
+resumes after <tt class="literal"><span class="pre">#endif</span></tt>.</p>
+<p><tt class="literal"><span class="pre">#if</span></tt> conditions can be nested without limit, but each #endif
+must match a corresponding #if.  Error reporting for a mismatched
+<tt class="literal"><span class="pre">#if</span></tt> .. <tt class="literal"><span class="pre">#endif</span></tt> pair is limited.</p>
+<p class="last">As with ppremake in general, an expression is considered to be
+true if it evaluates to a nonempty string, or false if it
+evaluates to an empty string.</p>
+</dd>
+</dl>
+</div>
+<div class="section" id="block-commands">
+<h3><a class="toc-backref" href="#id13" name="block-commands">3.2.3 Block commands</a></h3>
+<p>Each of the following commands opens a block which should be closed
+with a corresponding #end command.  It is akin to the matching of
+<tt class="literal"><span class="pre">#if</span></tt> .. <tt class="literal"><span class="pre">#endif</span></tt>.  Block commands may be nested without limit.
+In ppremake, each <tt class="literal"><span class="pre">#end</span></tt> has a parameter, which must match the name
+on the corresponding block command, as a visual aid to the programmer.</p>
+<dl>
+<dt><tt class="literal"><span class="pre">#begin</span> <span class="pre">&lt;scopename&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;scopename&gt;</span></tt></dt>
+<dd>Begins a new nested scope.  All the variables declared within this
+block will be associated with the new scope of the indicated name,
+which will be a child of the current scope.</dd>
+<dt><tt class="literal"><span class="pre">#foreach</span> <span class="pre">&lt;iterator&gt;</span> <span class="pre">&lt;values&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;iterator&gt;</span></tt></dt>
+<dd>Executes the nested block of code repeatedly, once for each of the
+space-separated words in <cite>&lt;values&gt;</cite>.  The <cite>&lt;iterator&gt;</cite> represents
+the name of a variable that will be created each time through the
+loop, with the next value in sequence.</dd>
+<dt><tt class="literal"><span class="pre">#forscopes</span> <span class="pre">&lt;scopenames&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;scopenames&gt;</span></tt></dt>
+<dd>Executes the nested block of code repeatedly, once for each of the
+scopes named by the space-separated list of names in
+<cite>&lt;scopenames&gt;</cite>.  Each time through the loop, the code will be
+re-evaluated within a different named scope, potentially providing
+new values for all of the variables referenced.  Unlike
+<tt class="literal"><span class="pre">#foreach</span></tt>, no iterator variable is necessary.</dd>
+<dt><tt class="literal"><span class="pre">#formap</span> <span class="pre">&lt;iterator&gt;</span> <span class="pre">&lt;mapvarname&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;iterator&gt;</span></tt></dt>
+<dd>Executes the nested block of code repeatedly, once for each key in
+the map variable.  Each time through the loop, a variable named
+<cite>&lt;iterator&gt;</cite> is created with the value of the current key, and the
+code is also evaluated within the associated scope.</dd>
+<dt><tt class="literal"><span class="pre">#while</span> <span class="pre">&lt;condition&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;condition&gt;</span></tt></dt>
+<dd>A general while loop, this repeated executes the nested block of
+code as long as <cite>&lt;condition&gt;</cite> remains true, i.e. nonempty.</dd>
+<dt><tt class="literal"><span class="pre">#for</span> <span class="pre">&lt;varname&gt;</span> <span class="pre">&lt;start&gt;,&lt;end&gt;[,&lt;increment&gt;]</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;varname&gt;</span></tt></dt>
+<dd>A specialized iterative loop.  The variable named by <cite>&lt;varname&gt;</cite>
+is initialized to the <cite>&lt;start&gt;</cite> value, then the contents of the
+loop are repeated, adding <cite>&lt;increment&gt;</cite> each time, until the
+variable reaches the <cite>&lt;end&gt;</cite> value.</dd>
+<dt><tt class="literal"><span class="pre">#defsub</span> <span class="pre">&lt;subname&gt;</span> <span class="pre">&lt;params&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;subname&gt;</span></tt></dt>
+<dd>Defines a new subroutine.  The nested block of code will be
+evaluated when #call <cite>&lt;subname&gt;</cite> is later invoked.  The &lt;params&gt;
+list is a comma-delimited list of formal parameter names; these
+names are the names of variables that will be filled in with the
+corresponding actual parameters on the #call command.</dd>
+<dt><tt class="literal"><span class="pre">#defun</span> <span class="pre">&lt;funcname&gt;</span> <span class="pre">&lt;params&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;funcname&gt;</span></tt></dt>
+<dd><p class="first">Defines a new function.  This is similar to a subroutine, except
+that the function is invoked inline, like a variable:
+<tt class="literal"><span class="pre">$[&lt;funcname&gt;</span> <span class="pre">&lt;params&gt;]</span></tt>, instead of with the <tt class="literal"><span class="pre">#call</span></tt> command.</p>
+<p class="last">All output generated within the function (that is, lines of text
+between <tt class="literal"><span class="pre">#defun</span></tt> and <tt class="literal"><span class="pre">#end</span></tt> that are not part of a command)
+are concatenated together into one string (newlines are removed)
+and returned as the result of the function.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#output</span> <span class="pre">&lt;filename&gt;</span> <span class="pre">&lt;flags&gt;</span></tt></dt>
+<dd><p class="last">...</p>
+</dd>
+<dt><tt class="literal"><span class="pre">#end</span> <span class="pre">&lt;filename&gt;</span></tt></dt>
+<dd><p class="first">Sends all output within the block (that is, lines of text between
+<tt class="literal"><span class="pre">#output</span></tt> and <tt class="literal"><span class="pre">#end</span></tt> that are not part of a command) to the
+indicated filename.  The <cite>&lt;flags&gt;</cite> are an optional space-separated
+list of keywords that modify the output behavior, presently the
+only recognized flag is &quot;notouch&quot;.</p>
+<p>If the file does not exist, it is created.  If the file already
+existed and its contents will be changed by this command, a
+message is printed to the user and the file is rewritten.</p>
+<p class="last">If the file already existed and its contents would not have been
+changed by this command, nothing is printed to the user, although
+the file is still rewritten (and the file modification timestamp
+is correspondingly updated with the current time and date).
+However, if the keyword &quot;notouch&quot; is included among the optional
+<cite>&lt;flags&gt;</cite> following the filename, the file (and consequently its
+timestamp) will not be modified unless the contents are actually
+different.</p>
+</dd>
+</dl>
+</div>
+</div>
+<div class="section" id="variable-references">
+<h2><a class="toc-backref" href="#id14" name="variable-references">3.3 Variable References</a></h2>
+<p>The ppremake syntax supports three different kinds of variable
+references: ordinary variables, map variables, and function calls.</p>
+<div class="section" id="ordinary-variable-references">
+<h3><a class="toc-backref" href="#id15" name="ordinary-variable-references">3.3.1 Ordinary variable references</a></h3>
+<p>Variables in ppremake are always referenced using a leading dollar
+sign immediately followed by the name of the variable enclosed in
+square brackets.  This syntax was chosen to resemble the GNU make
+variable syntax, but to be visually distinct to avoid confusion with
+actual make variables (which we might be writing to a makefile).</p>
+<p>Note that the dollar sign and square brackets are not actually part of
+the variable names, but are simply the syntax used to reference the
+variable.  However, this syntax is used throughout this document to
+refer to variables, to clarify that we are referring to ppremake
+variable names.</p>
+<p>Common ordinary variables that might be referenced in this way are
+ppremake built-in variables like <tt class="literal"><span class="pre">$[DIRNAME]</span></tt> or <tt class="literal"><span class="pre">$[PLATFORM]</span></tt>, or
+any user-defined variable created with #define or #defer.  Since
+environment variables are also automatically pulled into the ppremake
+variable space (similar to the behavior of make), environment
+variables may also be referenced in this way, although writing scripts
+that depend on environment variables is not recommended as it is not
+as portable (not every platform gives the user easy access to
+environment variables).</p>
+<p>There are also some fancy ways to expand ordinary variables.</p>
+<blockquote>
+<p>Inline pattern substitution:</p>
+<blockquote>
+Borrowing more syntax from GNU make, ppremake allows you to
+modify the contents of the variable according to a pattern-based
+substitution, similar to the $[patsubst] function.  The syntax
+is $[varname:&lt;from&gt;=&lt;to&gt;], where &lt;from&gt; and &lt;to&gt; are filename
+patterns each involving a percent sign (%).  The percent sign
+stands for the part of the filename that remains the same; the
+rest is modified accordingly.  For instance, $[<a class="reference" href="file:%.c=%.o">file:%.c=%.o</a>]
+will expand the variable $[file] and automatically replace a .c
+extension with .o.  It is equivalent to $[patsubst
+%.c,%.o,$[file]].  See <a class="reference" href="#variables">Variables</a>.</blockquote>
+<p>Inline foreign scoping:</p>
+<blockquote>
+<p>A special ppremake syntax exists to evaluate a variable within
+one or more different named scopes.  The syntax here is
+$[varname(&lt;scope names&gt;)], where &lt;scope names&gt; represents a
+space-separated list of words that name the scope or scopes
+within which the variable is to be evaluated.  The result is the
+space-separated concatenation of the values of the variable in
+each of the named scopes.</p>
+<p>To make a contrived example, suppose you had a scope named
+&quot;foo&quot;, in which a variable $[LETTER] is defined to be the string
+&quot;alpha&quot;, and a scope named &quot;bar&quot;, in which a variable $[LETTER]
+is defined to be the string &quot;beta&quot;.  In the current scope,
+however, $[LETTER] is defined as &quot;none&quot;.</p>
+<p>In this example, the expression $[LETTER] evaluates to &quot;none&quot;,
+but $[LETTER(foo)] evaluates to &quot;alpha&quot; and $[LETTER(foo bar)]
+evaluates to &quot;alpha beta&quot;.</p>
+</blockquote>
+</blockquote>
+</div>
+<div class="section" id="map-variables">
+<h3><a class="toc-backref" href="#id16" name="map-variables">3.3.2 Map variables</a></h3>
+<p>A map variable is a special ppremake construct to index into a table
+of named scopes by key.  The map variable is an indexed lookup into a
+set of named scopes, to determine in which scope a given variable has
+a particular value.</p>
+<p>To define a map variable, you need to have a set of named scopes, and
+an ordinary &quot;key&quot; variable that has been declared in each of them.
+The syntax is:</p>
+<pre class="literal-block">
+#map &lt;varname&gt; &lt;key_varname&gt;(&lt;scope_names&gt;)
+</pre>
+<p>Where <cite>&lt;varname&gt;</cite> is the name of the map variable you are declaring,
+<cite>&lt;key_varname&gt;</cite> is the name of the key variable that exists in each of
+the scopes, and <cite>&lt;scope_names&gt;</cite> is the list of scope names over which
+the map variable is being built.</p>
+<p>This builds up an index into <cite>&lt;scope_names&gt;</cite> based on the value of the
+<tt class="literal"><span class="pre">$[&lt;key_varname&gt;]</span></tt> within each scope.  Within each scope, the
+<tt class="literal"><span class="pre">$[&lt;key_varname&gt;]</span></tt> variable is divided at the spaces into words, and
+each word is added to the index as a key referencing this scope.</p>
+<p>For example, consider the <tt class="literal"><span class="pre">$[LETTER]</span></tt> example above.  You could
+define a simple map variable thus:</p>
+<pre class="literal-block">
+#map letmap LETTER(foo bar)
+</pre>
+<p>This defines a new map variable called <cite>letmap</cite> that maps into the two
+named scopes <cite>foo</cite> and <cite>bar</cite>, with the key being the value of
+<tt class="literal"><span class="pre">$[LETTER]</span></tt> in each of those two scopes.  That is, evaluating letmap
+with the string <cite>alpha</cite> will return the scope <cite>foo</cite>, while evaluating
+letmap with the string <cite>beta</cite> will return the scope <cite>bar</cite>.</p>
+<p>In other words, letmap is now a map variable with two key/value pairs.
+The two keys are <cite>alpha</cite> and <cite>beta</cite>, which map to the two scopes <cite>foo</cite>
+and <cite>bar</cite>, respectively.  The keys represent the values of the
+ordinary variable <tt class="literal"><span class="pre">$[LETTER]</span></tt> as evaluated within the two scopes.</p>
+<p>Note the similarity to the <tt class="literal"><span class="pre">$[LETTER(foo</span> <span class="pre">bar)]</span></tt> syntax, which
+incidentally returns the string &quot;<cite>alpha beta</cite>&quot; -- the same two keys
+that become part of the map variable.  A map variable is a lot like an
+inline foreign scoping reference, except it remembers which scope each
+key came from.</p>
+<p>To look up scopes in a map variable, use the syntax:</p>
+<pre class="literal-block">
+$[&lt;varname&gt; &lt;expr&gt;,&lt;key&gt;]
+</pre>
+<p>This returns the value of <cite>&lt;expr&gt;</cite> as evaluated within whatever scope
+is referenced by the string <cite>&lt;key&gt;</cite>.  To continue our example:</p>
+<pre class="literal-block">
+$[letmap $[upcase $[LETTER]],alpha]
+</pre>
+<p>will evaluate <tt class="literal"><span class="pre">$[upcase</span> <span class="pre">$[LETTER]]</span></tt> in the <cite>foo</cite> scope -- that is,
+the scope associated with the key <cite>alpha</cite> -- which incidentally
+returns the string <cite>ALPHA</cite>.</p>
+<p>It is also legal to look up multiple scopes at once.  If <cite>&lt;key&gt;</cite>
+contains spaces, it is divided up into words at the spaces, and each
+word is taken as a separate key.  The result of the map variable
+reference is the concatenation of all the evaluations of the
+expressions in all the matched keys.</p>
+<p>It is sometimes useful to ask whether a key is defined in a map
+variable or not.  The <tt class="literal"><span class="pre">$[unmapped]</span></tt> function can do this; see
+<a class="reference" href="#variables">Variables</a>.  Also, the <tt class="literal"><span class="pre">$[closure]</span></tt> function is useful for
+evaluating map variables recursively; see <a class="reference" href="#variables">Variables</a>.</p>
+</div>
+<div class="section" id="function-calls">
+<h3><a class="toc-backref" href="#id17" name="function-calls">3.3.3 Function calls</a></h3>
+<p>Function calls are a little more familiar from other scripting
+languages.  User functions are defined with the syntax:</p>
+<pre class="literal-block">
+#defun &lt;funcname&gt; &lt;params&gt;
+  ..
+#end &lt;funcname&gt;
+</pre>
+<p>where <cite>&lt;funcname&gt;</cite> is any arbitrary function name, and <cite>&lt;params&gt;</cite> is
+an optional list of comma-separated formal parameters.  Any text that
+appears between <tt class="literal"><span class="pre">#defun</span></tt> and its matching <tt class="literal"><span class="pre">#end</span></tt> (and is not part
+of some other command) is returned as the result of the function.</p>
+<p>For instance:</p>
+<pre class="literal-block">
+#defun updowncase abc,def
+  #if $[def]
+    $[upcase $[abc]]
+  #else
+    $[downcase $[abc]]
+  #endif
+#end updowncase
+</pre>
+<p>This defines a function with two parameters.  If the second parameter
+is true (nonempty), the result of the function is the upcase of the
+first parameter; otherwise, the result of the function is the downcase
+of the first parameter.</p>
+<p>To invoke the function, the syntax is somewhat like a variable
+expansion:</p>
+<pre class="literal-block">
+  $[&lt;function&gt; &lt;params&gt;]
+
+E.g.:
+
+  $[updowncase $[filename],]
+</pre>
+<p>Many builtin functions are also available; see <a class="reference" href="#variables">Variables</a>.</p>
+</div>
+</div>
+</div>
+<div class="section" id="variables">
+<h1><a class="toc-backref" href="#id18" name="variables">4 Variables</a></h1>
+<p>In general, variables are referenced within ppremake with the syntax
+<tt class="literal"><span class="pre">$[variable-name]</span></tt>.  Functions, if defined, are referenced by
+something like <tt class="literal"><span class="pre">$[function-name</span> <span class="pre">arg1</span> <span class="pre">arg2</span> <span class="pre">...</span> <span class="pre">]</span></tt>.  The ppremake
+syntax borrows heavily from that of GNU makefile syntax, with GNU
+make's parentheses replaced by square brackets to prevent confusion
+with actual makefile syntax.</p>
+<p>Note that the dollar sign and square brackets are not actually part of
+the variable names, but are simply the syntax used to reference the
+variable.  This syntax is included with each variable definition in
+this document, because that is how you are most likely to see the
+variable references.</p>
+<p>The general convention is for variables that are built into ppremake,
+or defined by the system ppremake scripts in the <tt class="literal"><span class="pre">$DTOOL</span></tt> root
+directory, should be defined with uppercase letters.  User-defined
+variables, such as those used by the scripts in the <tt class="literal"><span class="pre">$DTOOL/pptempl</span></tt>
+directory to generate the various kinds of makefiles, are defined with
+lowercase letters.  However, following the GNU makefile convention,
+all built-in function names are lowercase.</p>
+<p>The following variables are built into the ppremake executable, and
+are always defined:</p>
+<dl>
+<dt><tt class="literal"><span class="pre">$[PPREMAKE]</span></tt></dt>
+<dd>The name of the ppremake program itself, e.g. &quot;ppremake&quot;.</dd>
+<dt><tt class="literal"><span class="pre">$[PPREMAKE_VERSION]</span></tt></dt>
+<dd>The current version number for ppremake.</dd>
+<dt><tt class="literal"><span class="pre">$[PLATFORM]</span></tt></dt>
+<dd>The compiled-in platform string; presently, this may be one of Linux,
+Irix, or Win32.</dd>
+<dt><tt class="literal"><span class="pre">$[PACKAGE_FILENAME]</span></tt></dt>
+<dd>The expected name of the file that indicates the top of the source
+hierarchy, e.g. Package.pp.</dd>
+<dt><tt class="literal"><span class="pre">$[SOURCE_FILENAME]</span></tt></dt>
+<dd>The expected name of the file that should be present in each
+subdirectory within the source hierarchy and defines the makefiles
+that should be generated within each subdirectory, e.g.
+Sources.pp.</dd>
+<dt><tt class="literal"><span class="pre">$[PPREMAKE_CONFIG]</span></tt></dt>
+<dd>The full pathname to the initial Config.pp file to read.  This may
+be specified by -c on the ppremake command line, or if it is
+unspecified, it is expected the user will set an environment
+variable of this name to the appropriate pathname.</dd>
+<dt><tt class="literal"><span class="pre">$[TAB]</span></tt></dt>
+<dd>The tab character.  This is primarily useful for generating
+makefiles, which insist on having an actual tab character, without
+having to store an actual tab character in the input files.</dd>
+<dt><tt class="literal"><span class="pre">$[PACKAGE_FILE]</span></tt></dt>
+<dd>The pathname to the Package.pp file at the top of the current
+source hierarchy, relative to the current directory.</dd>
+<dt><tt class="literal"><span class="pre">$[TOPDIR]</span></tt></dt>
+<dd>The directory name containing <tt class="literal"><span class="pre">$[PACKAGE_FILE]</span></tt>; that is, the
+directory name of the top of the current source hierarchy.  Unlike
+<tt class="literal"><span class="pre">$[PACKAGE_FILE]</span></tt>, this is an absolute pathname, rather than a
+relative pathname.</dd>
+</dl>
+<p>The following variables are built into the ppremake executable, and
+are updated with the current values as each Sources.pp file is
+scanned:</p>
+<dl>
+<dt><tt class="literal"><span class="pre">$[DIRNAME]</span></tt></dt>
+<dd>The name of the source directory currently being processed.  This
+is neither a relative nor an absolute directory path, and does not
+contain slashes; it is simply the name of the directory that
+contains the current Sources.pp file.  By convention, all
+directory names within a particular source hierarchy must be
+unique.</dd>
+<dt><tt class="literal"><span class="pre">$[DIRPREFIX]</span></tt></dt>
+<dd>The relative pathname to the current source directory, from
+<tt class="literal"><span class="pre">$[TOPDIR]</span></tt>, with a trailing slash.</dd>
+<dt><tt class="literal"><span class="pre">$[SOURCEFILE]</span></tt></dt>
+<dd>The name of the source file currently being processed.  This will
+be &quot;Sources.pp&quot; (but see also <tt class="literal"><span class="pre">$[THISFILENAME]</span></tt>, below).  Thus,
+for example, <tt class="literal"><span class="pre">$[TOPDIR]$[DIRPREFIX]$[SOURCEFILE]</span></tt> will be the
+full pathname to the current Sources.pp file.</dd>
+<dt><tt class="literal"><span class="pre">$[PATH]</span></tt></dt>
+<dd>The relative pathname to the current directory, from
+<tt class="literal"><span class="pre">$[TOPDIR]</span></tt>, without a trailing slash.</dd>
+<dt><tt class="literal"><span class="pre">$[RELDIR]</span></tt></dt>
+<dd>This is a special variable that is similar to <tt class="literal"><span class="pre">$[PATH]</span></tt> in that
+it contains the relative pathname to the current directory, but
+instead of being relative to <tt class="literal"><span class="pre">$[TOPDIR]</span></tt> it is relative to the
+current <em>output</em> directory--the directory in which the current
+#output command in effect is directing its output.  This value of
+this variable is therefore dependant on context.</dd>
+<dt><tt class="literal"><span class="pre">$[SUBDIRS]</span></tt></dt>
+<dd>A space-delimited list of source subdirectories within this source
+directory.  These are simply directory names, without slashes;
+prefix each name with <tt class="literal"><span class="pre">$[DIRPREFIX]</span></tt> to make them relative to
+<tt class="literal"><span class="pre">$[TOPDIR]</span></tt>.  These are automatically sorted in dependency
+order, such that a particular directory always appears following
+all the directories it depends on.</dd>
+<dt><tt class="literal"><span class="pre">$[SUBTREE]</span></tt></dt>
+<dd>A space-delimited list of names of all source subdirectories,
+including this one, at this level and below.  The subdirectory
+names are relative to <tt class="literal"><span class="pre">$[TOPDIR]</span></tt>.  As above, these are sorted
+into dependency order.</dd>
+</dl>
+<p>The following variables are built into the ppremake executable, and
+are updated with the current values as <em>each</em> different file is read
+in (e.g. via the <tt class="literal"><span class="pre">#include</span></tt> directive):</p>
+<dl>
+<dt><tt class="literal"><span class="pre">$[THISFILENAME]</span></tt></dt>
+<dd>The current filename being read; often as a relative filename from
+<tt class="literal"><span class="pre">$[TOPDIR]</span></tt>, or as a full pathname when the file is outside of
+the current source hierarchy.</dd>
+<dt><tt class="literal"><span class="pre">$[THISDIRPREFIX]</span></tt></dt>
+<dd>The directory containing the current filename being read, with a
+trailing slash; this everything up to and including the rightmost
+slash in <tt class="literal"><span class="pre">$[THISFILENAME]</span></tt>.</dd>
+</dl>
+<p>The following variable is built into the ppremake executable, and is
+filled in after all Sources.pp files have been read:</p>
+<dl>
+<dt><tt class="literal"><span class="pre">$[TREE]</span></tt></dt>
+<dd>A space-delimited list of names of all the directories in the
+current source hierarchy containing a Sources.pp file, relative to
+<tt class="literal"><span class="pre">$[TOPDIR]</span></tt>.  Note that this variable is not available until
+after all the Sources.pp files have been read, so it cannot itself
+be referenced within a Sources.pp file.</dd>
+</dl>
+<p>The following variables are not set by the ppremake executable, but
+are required to be set by one of the startup scripts, typically
+<tt class="literal"><span class="pre">$DTOOL/pptempl/System.pp</span></tt>:</p>
+<dl>
+<dt><tt class="literal"><span class="pre">$[GLOBAL_FILE]</span></tt></dt>
+<dd>The full pathname to the file that should be read within the
+global scope after reading each Sources.pp file and before reading
+each Template file.</dd>
+<dt><tt class="literal"><span class="pre">$[TEMPLATE_FILE]</span></tt></dt>
+<dd>The full pathname to the file that should be read once for each
+Sources.pp file to generate the actual output makefiles
+appropriate to each directory.</dd>
+<dt><tt class="literal"><span class="pre">$[DEPENDS_FILE]</span></tt></dt>
+<dd>The full pathname to the file that should be read once for each
+Sources.pp file to determine the inter-directory dependencies and
+inter-file dependencies.</dd>
+<dt><tt class="literal"><span class="pre">$[DEPENDENCY_CACHE_FILENAME]</span></tt></dt>
+<dd>The name of the file (with no directory part of the filename) that
+is used to cache the inter-file dependencies for each source file
+in a given directory between sessions.  A file by this name is
+automatically created in each source directory.</dd>
+<dt><tt class="literal"><span class="pre">$[DEPEND_DIRS]</span></tt></dt>
+<dd>The list of directories that the current directory depends on.
+This is set by the script named by <tt class="literal"><span class="pre">$[DEPENDS_FILE]</span></tt>, and has a
+different value within each source directory.</dd>
+<dt><tt class="literal"><span class="pre">$[DEPENDABLE_HEADERS]</span></tt></dt>
+<dd>The list of source filenames within the current directory that are
+considered source header files and that might be listed with the
+<tt class="literal"><span class="pre">#include</span></tt> directory in some other file.  This is used to
+determine the set of inter-file dependencies.  Like
+<tt class="literal"><span class="pre">$[DEPEND_DIRS]</span></tt>, this is set by the <tt class="literal"><span class="pre">$[DEPENDS_FILE]</span></tt> script,
+and has a different value within each source directory.</dd>
+</dl>
+<p>The following functions are built into the ppremake executable.  In
+general, these operate on one word or a group of words separated by
+spaces.  Functions that take multiple parameters with different
+meanings will use commas to separate out the individual parameters
+(and then each parameter may still consist of one word or a group of
+words).  The result is always a string, which might be true/false, or
+one word or a group of words.  For true/false results, the return
+value is either the empty string (false) or a nonempty string (true).</p>
+<dl>
+<dt><tt class="literal"><span class="pre">$[isfullpath</span> <span class="pre">&lt;pathname&gt;]</span></tt></dt>
+<dd>Returns true if &lt;pathname&gt; is a full pathname, i.e. it begins with
+a slash.  Remember that ppremake always uses Unix-style pathnames
+internally, even on a Windows platform.</dd>
+<dt><tt class="literal"><span class="pre">$[osfilename</span> <span class="pre">&lt;pathname&gt;]</span></tt></dt>
+<dd>Converts the indicated Unix-style pathname to a format appropriate
+to the platform in use.  For instance, on Windows it replaces all
+of the forward slashes with backslashes.  On a Unix platform it
+does nothing.</dd>
+<dt><tt class="literal"><span class="pre">$[unixfilename</span> <span class="pre">&lt;pathname&gt;]</span></tt></dt>
+<dd>Converts the indicated native-style pathname to a Unix-style
+pathname for internal operations.  This can be used to read a
+pathname as supplied by the user, which might be in Windows style
+format (i.e. with backslashes instead of forward slashes).</dd>
+<dt><tt class="literal"><span class="pre">$[cygpath_w</span> <span class="pre">&lt;pathname&gt;]</span></tt></dt>
+<dd>Similar to <tt class="literal"><span class="pre">$[osfilename]</span></tt>, except it takes advantage of the
+Cygwin library, if available, to do a more accurate filename
+conversion.  This is generally specific to the Windows platform.
+The result is the same as the output of the <tt class="literal"><span class="pre">cygpath</span> <span class="pre">-w</span></tt> shell
+command.</dd>
+<dt><tt class="literal"><span class="pre">$[cygpath_p</span> <span class="pre">&lt;pathname&gt;]</span></tt></dt>
+<dd>Similar to <tt class="literal"><span class="pre">$[unixfilename]</span></tt>, but as above, duplicates the
+<tt class="literal"><span class="pre">cygpath</span> <span class="pre">-p</span> <span class="pre">-u</span></tt> shell command.</dd>
+<dt><tt class="literal"><span class="pre">$[wildcard</span> <span class="pre">&lt;param1&gt;</span> <span class="pre">&lt;param2&gt;</span> <span class="pre">...]</span></tt></dt>
+<dd>Expands the indicated parameters as if they were filename
+wildcards against the current directory.  For example,
+<tt class="literal"><span class="pre">$[wildcard</span> <span class="pre">*.c]</span></tt> returns a list of all C files in the current
+directory.</dd>
+<dt><tt class="literal"><span class="pre">$[isdir</span> <span class="pre">&lt;filename&gt;]</span></tt></dt>
+<dd>Returns true if the named file exists and is a directory, false
+otherwise.  This actually expands the parameter(s) given, similar
+to <tt class="literal"><span class="pre">$[wildcard]</span></tt>, and tests the first file returned.</dd>
+<dt><tt class="literal"><span class="pre">$[isfile</span> <span class="pre">&lt;filename&gt;]</span></tt></dt>
+<dd>Returns true if the named file exists and is a regular file, false
+otherwise.  This actually expands the parameter(s) given, similar
+to <tt class="literal"><span class="pre">$[wildcard]</span></tt>, and tests the first file returned.</dd>
+<dt><tt class="literal"><span class="pre">$[libtest</span> <span class="pre">&lt;dirnames&gt;,&lt;libname&gt;]</span></tt></dt>
+<dd><p class="first">Checks to see if a library file by the given name exists in any of
+the named directories.  Here <cite>&lt;dirnames&gt;</cite> may be any
+space-separated list of directory names.  Returns true if the
+library is found, false otherwise.</p>
+<p class="last">This function follows the following ppremake convention: if a
+library name is given without an extension, the actual filename to
+search for is constructed by prefixing &quot;lib&quot; and adding whatever
+extension is appropriate for the OS in question.  For instance,
+&quot;nspr&quot; may search for libnspr.a (or libnspr.lib on Windows).
+However, if the library name is given including an extension, that
+is taken to be the filename without modification.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">$[bintest</span> <span class="pre">&lt;binname&gt;]</span></tt></dt>
+<dd>Checks to see if an executable program exists on the current
+search path.  The program may or may not include the final
+<tt class="literal"><span class="pre">.exe</span></tt> extension (on Windows).  Returns true if it is found,
+false otherwise.</dd>
+<dt><tt class="literal"><span class="pre">$[shell</span> <span class="pre">&lt;command&gt;]</span></tt></dt>
+<dd>Executes the indicated command in a sub-shell, and returns the
+standard output from the process.  Use of this command is somewhat
+unportable (it doesn't work on a Windows machine that doesn't have
+Cygwin installed).</dd>
+<dt><tt class="literal"><span class="pre">$[standardize</span> <span class="pre">&lt;filename&gt;]</span></tt></dt>
+<dd>Convert the indicated filename to standard form by removing
+consecutive repeated slashes and collapsing <tt class="literal"><span class="pre">/../</span></tt> where
+possible.</dd>
+<dt><tt class="literal"><span class="pre">$[length</span> <span class="pre">&lt;argument&gt;]</span></tt></dt>
+<dd>Returns the length of the indicated argument in characters, not
+counting leading or trailing spaces.</dd>
+<dt><tt class="literal"><span class="pre">$[substr</span> <span class="pre">&lt;s&gt;,&lt;e&gt;,&lt;string&gt;]</span></tt></dt>
+<dd>Returns the substring of <cite>&lt;string&gt;</cite> beginning at character <cite>&lt;s&gt;</cite>
+(1-based) and continuing to character <cite>&lt;e&gt;</cite>, inclusive.</dd>
+<dt><tt class="literal"><span class="pre">$[dir</span> <span class="pre">&lt;filenames&gt;]</span></tt></dt>
+<dd>Returns the directory part of the filename argument(s).  This is
+the text up to and including the rightmost slash of each argument,
+or <tt class="literal"><span class="pre">./</span></tt> if the argument contains no slash.  For example, <tt class="literal"><span class="pre">$[dir</span>
+<span class="pre">abc/def/t.c</span> <span class="pre">abc/foo.bar</span> <span class="pre">lib.exe]</span></tt> will return the string
+&quot;abc/def/ abc/ ./&quot;.</dd>
+<dt><tt class="literal"><span class="pre">$[notdir</span> <span class="pre">&lt;filenames&gt;]</span></tt></dt>
+<dd>Returns everything except the directory part of the filename
+argument(s).  This the text following the rightmost slash of each
+argument, or the argument itself if there is no slash.</dd>
+<dt><tt class="literal"><span class="pre">$[suffix</span> <span class="pre">&lt;filenames&gt;]</span></tt></dt>
+<dd>Returns the filename extension of each argument, including the
+leading dot, if any.  If there is no extension, it returns the
+empty string.</dd>
+<dt><tt class="literal"><span class="pre">$[basename</span> <span class="pre">&lt;filenames&gt;]</span></tt></dt>
+<dd>Returns the basename part of each argument: everything except for
+the extension and its dot, but including the directory, if any.</dd>
+<dt><tt class="literal"><span class="pre">$[makeguid</span> <span class="pre">&lt;name&gt;]</span></tt></dt>
+<dd>Returns a GUID (global unique identifier) based on an MD5 digest
+computation of <cite>&lt;name&gt;</cite>.  The resulting GUID, which looks like
+398F2CC4-C683-26EB-3251-6FC996738F7F, is suitable for identifying
+Visual Studio .NET projects.</dd>
+<dt><tt class="literal"><span class="pre">$[word</span> <span class="pre">&lt;n&gt;,&lt;words&gt;]</span></tt></dt>
+<dd>Returns the nth word, 1-based, of the space-separated list of
+words in the second parameter.</dd>
+<dt><tt class="literal"><span class="pre">$[wordlist</span> <span class="pre">&lt;s&gt;,&lt;e&gt;,&lt;words&gt;]</span></tt></dt>
+<dd>Returns the range of words, 1-based, of the space-separated list
+of words in the third parameter.  See also <tt class="literal"><span class="pre">$[substr]</span></tt>.</dd>
+<dt><tt class="literal"><span class="pre">$[words</span> <span class="pre">&lt;words&gt;]</span></tt></dt>
+<dd>Returns the number of space-separated words in the list.</dd>
+<dt><tt class="literal"><span class="pre">$[firstword</span> <span class="pre">&lt;words&gt;]</span></tt></dt>
+<dd>Returns the first word in the space-separated list.  This is the
+same as <tt class="literal"><span class="pre">$[word</span> <span class="pre">1,&lt;words&gt;]</span></tt>.</dd>
+<dt><tt class="literal"><span class="pre">$[patsubst</span> <span class="pre">&lt;from&gt;,&lt;to&gt;,&lt;words&gt;]</span></tt></dt>
+<dd><p class="first">Modifies each of the words in the list (typically, these will be
+filenames) according to the <cite>&lt;from&gt;</cite>/<cite>&lt;to&gt;</cite> pattern matching.</p>
+<p>Both the <cite>&lt;from&gt;</cite> and the <cite>&lt;to&gt;</cite> pattern should include exactly
+one percent sign (%).  This symbol stands for any sequence of
+characters in the filename, and the rest of the pattern represents
+literal text.  Whatever is matched by the percent sign in <cite>&lt;from&gt;</cite>
+is subsituted in for the percent sign in <cite>&lt;to&gt;</cite>.</p>
+<p>For example, <tt class="literal"><span class="pre">$[patsubst</span> <span class="pre">%.c,%.o,``$[sources]</span></tt>]`` will replace
+each filename listed in <tt class="literal"><span class="pre">$[sources]</span></tt> that ends in .c with a
+corresponding filename that ends in .o instead.</p>
+<p>The percent sign may appear in the beginning, middle, or end of
+the <cite>&lt;from&gt;</cite> pattern, but it must appear once.  It may not appear
+twice within a pattern string (but see the special extension for
+space-separated <cite>&lt;from&gt;</cite> patterns, below).  If a filename in the
+list does not match the <cite>&lt;from&gt;</cite> pattern, it is left unchanged.
+In practice, the percent sign is usually used to stand for the
+first part of the filename, and the extension is matched
+explicitly.</p>
+<p>This function is based on the <tt class="literal"><span class="pre">$(patsubst)</span></tt> function as used in
+GNU makefiles.  As a special extension to GNU syntax, you may also
+insert multiple pairs of <cite>&lt;from&gt;,&lt;to&gt;</cite> replacement patterns:</p>
+<pre class="literal-block">
+$[patsubst &lt;from1&gt;,&lt;to1&gt;,&lt;from2&gt;,&lt;to2&gt;,&lt;from3&gt;,&lt;to3&gt;,...,&lt;words&gt;]
+</pre>
+<p>In this syntax, each word will be tested against each pattern in
+sequence, until a match is found.  When the first <cite>&lt;from&gt;</cite> match
+is found for a given word, the corresponding <cite>&lt;to&gt;</cite> string is used
+to generate the replacement.  If all <cite>&lt;from&gt;</cite> patterns are
+exhausted and a match has not been found, the word is inserted
+unchanged.</p>
+<p>For example: the expression <tt class="literal"><span class="pre">$[patsubst</span> <span class="pre">%.c,%.h,%.C,%.H,$[files]]</span></tt>
+will convert each .c file to the corresponding .h file, and each
+.C file to the corresponding .H file.</p>
+<p class="last">As a further extension to GNU syntax, each <cite>&lt;from&gt;</cite> pattern may
+actually be a space-separate sequence of multiple patterns.  In
+this case, if the word matches any of the patterns, it is
+considered to match the whole pattern.  For example, <tt class="literal"><span class="pre">$[patsubst</span>
+<span class="pre">%.c</span> <span class="pre">%.y</span> <span class="pre">%.l,%.o,$[files]]</span></tt> will replace any filename in
+%``$[files]`` that ends in .c, .y, or .l with the extension .o.</p>
+</dd>
+<dt><tt class="literal"><span class="pre">$[patsubstw</span> <span class="pre">&lt;from&gt;,&lt;to&gt;,&lt;word&gt;]</span></tt></dt>
+<dd>As above, but <cite>&lt;word&gt;</cite> is not split into multiple words, even it
+it contains spaces -- it is matched, spaces and all, with the
+patterns in the <cite>&lt;from&gt;</cite> and <cite>&lt;to&gt;</cite> strings.</dd>
+<dt><tt class="literal"><span class="pre">$[filter</span> <span class="pre">&lt;patterns&gt;,&lt;words&gt;]</span></tt></dt>
+<dd>Filters the space-separated list of <cite>&lt;words&gt;</cite> to return only those
+words that match one or more of the patterns given in the
+space-separated list of &lt;patterns&gt;.  For instance, <tt class="literal"><span class="pre">$[filter</span>
+<span class="pre">%.c,$[files]]</span></tt> returns only those filenames in <tt class="literal"><span class="pre">$[files]</span></tt> that
+%end in .c.  (The same thing can also be achieved with
+%``$[patsubst %.c,%.c,%,,$[files]]``--this replaces each
+%occurrence of %.c with itself, and everything else (%) with the
+%empty string.)</dd>
+<dt><tt class="literal"><span class="pre">$[filter-out</span> <span class="pre">&lt;patterns&gt;,&lt;words&gt;]</span></tt></dt>
+<dd>The inverse of <tt class="literal"><span class="pre">$[filter]</span></tt>, this returns only the words that do
+<em>not</em> match any of the patterns in <cite>&lt;patterns&gt;</cite>.  For instance,
+<tt class="literal"><span class="pre">$[filter-out</span> <span class="pre">%.c,$[files]]</span></tt> returns only those file in
+<tt class="literal"><span class="pre">$[files]</span></tt> that do <em>not</em> end in .c.  (The same thing can also be
+achieved with <tt class="literal"><span class="pre">$[patsubst</span> <span class="pre">%.c,,%,%,$[files]]</span></tt>.)</dd>
+<dt><tt class="literal"><span class="pre">$[subst</span> <span class="pre">&lt;from&gt;,&lt;to&gt;,&lt;text&gt;]</span></tt></dt>
+<dd><p class="first">Substitutes all occurrences of <cite>&lt;from&gt;</cite> appearing in <cite>&lt;text&gt;</cite> with
+<cite>&lt;to&gt;</cite>.  Unlike <tt class="literal"><span class="pre">$[patsubst]</span></tt>, this pays no attention to percent
+signs and does not chop <cite>&lt;text&gt;</cite> up into words; it is strictly a
+byte-for-byte replacement.  For instance, <tt class="literal"><span class="pre">$[subst</span> <span class="pre">foo,bar,I</span> <span class="pre">need</span>
+<span class="pre">food]</span></tt> produces &quot;I need bard&quot;.</p>
+<p>As a further extension to GNU, similar to the corresponding
+extension for <tt class="literal"><span class="pre">$[patsubst]</span></tt>, you may include multiple
+<cite>&lt;from&gt;,&lt;to&gt;</cite> pairs, e.g.:</p>
+<p class="last"><tt class="literal"><span class="pre">$[subst</span> <span class="pre">&lt;from1&gt;,&lt;to1&gt;,&lt;from2&gt;,&lt;to2&gt;,&lt;from3&gt;,&lt;to3&gt;,...,&lt;text&gt;]</span></tt></p>
+</dd>
+<dt><tt class="literal"><span class="pre">$[wordsubst</span> <span class="pre">&lt;from&gt;,&lt;to&gt;,&lt;text&gt;]</span></tt></dt>
+<dd>Like <tt class="literal"><span class="pre">$[subst]</span></tt>, except it only replaces whole words.</dd>
+<dt><tt class="literal"><span class="pre">$[findstring</span> <span class="pre">&lt;a&gt;,&lt;b&gt;]</span></tt></dt>
+<dd>Returns <cite>&lt;b&gt;</cite> if and only if it is a substring of <cite>&lt;a&gt;</cite>;
+otherwise, returns the empty string.</dd>
+<dt><tt class="literal"><span class="pre">$[sort</span> <span class="pre">&lt;words&gt;]</span></tt></dt>
+<dd>Returns the space-separated list of <cite>&lt;words&gt;</cite>, sorted into
+alphabetical order.  This also removes duplicate words;
+<tt class="literal"><span class="pre">$[sort]</span></tt> is therefore often used solely for its side effect of
+eliminating duplicate words from a list.</dd>
+<dt><tt class="literal"><span class="pre">$[unique</span> <span class="pre">&lt;words&gt;]</span></tt></dt>
+<dd>Removes duplicate words from the list without changing their
+respective order.  Since this is slightly slower than <tt class="literal"><span class="pre">$[sort]</span></tt>,
+it should only be used when the order of the original words on the
+list is important.</dd>
+<dt><tt class="literal"><span class="pre">$[join</span> <span class="pre">&lt;sep,&lt;words&gt;]</span></tt></dt>
+<dd>Joins the space-separated list of <cite>&lt;words&gt;</cite> into a single string
+using the separator <cite>&lt;sep&gt;</cite>.</dd>
+<dt><tt class="literal"><span class="pre">$[matrix</span> <span class="pre">&lt;param1&gt;,&lt;param2&gt;,&lt;param3&gt;,...,&lt;paramN&gt;]</span></tt></dt>
+<dd>Splits each parameter up into a space-separated set of words, and
+then returns a result that represents all the ways to combine the
+different words in each parameter, like the shell {a,b,c}
+expansion syntax.  For example, <tt class="literal"><span class="pre">$[matrix</span> <span class="pre">a</span> <span class="pre">b,c,10</span> <span class="pre">20</span> <span class="pre">30]</span></tt>
+expands to ac10 ac20 ac30 bc10 bc20 bc30.</dd>
+<dt><tt class="literal"><span class="pre">$[if</span> <span class="pre">&lt;expr&gt;,&lt;str1&gt;,&lt;str2&gt;]</span></tt></dt>
+<dd>Returns <cite>&lt;str1&gt;</cite> if the expression string <cite>&lt;expr&gt;</cite> is true (that
+is, nonempty), or <cite>&lt;str2&gt;</cite> if <cite>&lt;expr&gt;</cite> is false (empty).  The
+false condition <cite>&lt;str2&gt;</cite> may be omitted; if so, empty string is
+returned if <cite>&lt;expr&gt;</cite> is false.</dd>
+<dt><tt class="literal"><span class="pre">$[foreach</span> <span class="pre">&lt;tempvar&gt;,&lt;words&gt;,&lt;expr&gt;]</span></tt></dt>
+<dd>Evaluates <cite>&lt;expr&gt;</cite> once for each word in the space-separated list
+<cite>&lt;words&gt;</cite>.  For each such word, a variable named <cite>&lt;tempvar&gt;</cite> is
+assigned the current word, then <cite>&lt;expr&gt;</cite> is evaluated; the result
+is the concatenation of all the evaluations.  For instance,
+<tt class="literal"><span class="pre">$[foreach</span> <span class="pre">t,dog</span> <span class="pre">cat</span> <span class="pre">mouse,foo/bar/$[t].c]</span></tt> produces
+<tt class="literal"><span class="pre">foo/bar/dog.c</span> <span class="pre">foo/bar/cat.c</span> <span class="pre">foo/bar/mouse.c</span></tt>.</dd>
+<dt><tt class="literal"><span class="pre">$[forscopes</span> <span class="pre">&lt;scopes&gt;,&lt;expr&gt;]</span></tt></dt>
+<dd>Like <tt class="literal"><span class="pre">$[foreach]</span></tt>, above, but evaluates <cite>&lt;expr&gt;</cite> once within
+each of the scopes named by the space-separated <cite>&lt;scopes&gt;</cite> list.
+See the discussion on ppremake <a class="reference" href="#named-scopes">Named Scopes</a> in <a class="reference" href="#syntax">Syntax</a>.</dd>
+<dt><tt class="literal"><span class="pre">$[eq</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span></tt></dt>
+<dd>Returns true (nonempty) if <cite>&lt;op1&gt;</cite> is string equivalent to
+<cite>&lt;op2&gt;</cite>, disregarding leading and trailing spaces.</dd>
+<dt><tt class="literal"><span class="pre">$[ne</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span></tt></dt>
+<dd>Returns true (nonempty) if <cite>&lt;op1&gt;</cite> is <em>not</em> string equivalent to
+<cite>&lt;op2&gt;</cite>, disregarding leading and trailing spaces.</dd>
+<dt><tt class="literal"><span class="pre">$[defined</span> <span class="pre">&lt;varname&gt;]</span></tt></dt>
+<dd>Returns true if the named variable has any definition, whether it
+is empty or nonempty, or false if it has not yet been defined.
+Since the semantic convention of ppremake is intended to be that
+all variables are implicitly defined to the empty string if they
+are not explicitly defined otherwise, the meaning of this function
+is questionable.</dd>
+<dt><tt class="literal"><span class="pre">$[=</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span></tt></dt>
+<dd>Returns true (nonempty) if <cite>&lt;op1&gt;</cite> is numerically equivalent to
+<cite>&lt;op2&gt;</cite>.  It is an error if either <cite>&lt;op1&gt;</cite> or <cite>&lt;op2&gt;</cite> is not a
+number.  This may also be written as <tt class="literal"><span class="pre">$[==</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span></tt>.</dd>
+<dt><tt class="literal"><span class="pre">$[!=</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[&lt;</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[&lt;=</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[&gt;</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[&gt;=</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span></tt></dt>
+<dd>The above all have the obvious semantic meaning, based on a
+numerical comparison of <cite>&lt;op1&gt;</cite> and <cite>&lt;op2&gt;</cite>.</dd>
+<dt><tt class="literal"><span class="pre">$[+</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[-</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[-</span> <span class="pre">&lt;op1&gt;]</span> <span class="pre">$[*</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[/</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span> <span class="pre">$[%</span> <span class="pre">&lt;op1&gt;,&lt;op2&gt;]</span></tt></dt>
+<dd>The above perform the appropriate arithmetic operation on <cite>&lt;op1&gt;</cite>
+and <cite>&lt;op2&gt;</cite> (or on <cite>&lt;op1&gt;</cite> only, in the case of unary minus).  The
+operation is always integer.</dd>
+<dt><tt class="literal"><span class="pre">$[not</span> <span class="pre">&lt;expr&gt;]</span></tt></dt>
+<dd>Returns true (nonempty) if the expression is empty, and false
+(empty) if the expression is nonempty.</dd>
+<dt><tt class="literal"><span class="pre">$[or</span> <span class="pre">&lt;expr1&gt;,&lt;expr2&gt;,...,&lt;exprN&gt;]</span></tt></dt>
+<dd>Returns true (nonempty) if any of the subexpressions are nonempty.</dd>
+<dt><tt class="literal"><span class="pre">$[and</span> <span class="pre">&lt;expr1&gt;,&lt;expr2&gt;,...,&lt;exprN&gt;]</span></tt></dt>
+<dd>Returns true (nonempty) if all of the subexpressions are nonempty.</dd>
+<dt><tt class="literal"><span class="pre">$[upcase</span> <span class="pre">&lt;text&gt;]</span></tt></dt>
+<dd>Returns the input text, with all lowercase letters converted to
+uppercase.</dd>
+<dt><tt class="literal"><span class="pre">$[downcase</span> <span class="pre">&lt;text&gt;]</span></tt></dt>
+<dd>Returns the input text, with all uppercase letters converted to
+lowercase.</dd>
+<dt><tt class="literal"><span class="pre">$[cdefine</span> <span class="pre">&lt;varname&gt;]</span></tt></dt>
+<dd>A convenience function to output a C-style <tt class="literal"><span class="pre">#define</span></tt> or
+<tt class="literal"><span class="pre">#undef</span></tt> statement based on the value of the named variable.  If
+the named string is a variable whose definition is nonempty, this
+returns <tt class="literal"><span class="pre">#define</span> <span class="pre">varname</span> <span class="pre">definitionx</span></tt>.  Otherwise, it returns
+<tt class="literal"><span class="pre">#undef</span> <span class="pre">varname</span></tt>. This is particularly useful for building up a
+<tt class="literal"><span class="pre">config.h</span></tt> file.</dd>
+<dt><tt class="literal"><span class="pre">$[dependencies</span> <span class="pre">&lt;filename&gt;]</span></tt></dt>
+<dd>Outputs a list of all the other source files that the named source
+file depends on.  The set of dependencies for a particular source
+file is determined by ppremake when it scans all the directories;
+it scans each source file for the presence of <tt class="literal"><span class="pre">#include</span></tt>
+directives and uses this information to build a file dependency
+tree.  This allows ppremake to generate makefiles with the proper
+file dependencies built in, even on systems for which makefile
+autodependencies have not been implemented.</dd>
+<dt><tt class="literal"><span class="pre">$[closure</span> <span class="pre">&lt;varname&gt;,&lt;expr&gt;]</span></tt></dt>
+<dd>Recursively expands the map variable <cite>$[varname]</cite> with the
+expression <cite>&lt;expr&gt;</cite>, until all definitions have been encountered.
+See the discussion on ppremake map variables in <a class="reference" href="#syntax">Syntax</a>.</dd>
+<dt><tt class="literal"><span class="pre">$[unmapped</span> <span class="pre">&lt;varname&gt;,&lt;keys&gt;]</span></tt></dt>
+<dd>Returns all the words in the space-separated list <cite>&lt;keys&gt;</cite> that do
+not match any of the keys in the indicated map variable.</dd>
+</dl>
+<!-- vim: textwidth=70 expandtab autoindent -->
+</div>
+</div>

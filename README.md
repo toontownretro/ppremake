@@ -4,4 +4,6 @@ The name _ppremake_ stands for Panda Pre-make; ppremake is a preprocessor that r
 
 ppremake can be built on Windows and Unix platforms. A Visual Studio solution is provided for building on Windows, and autoconf can be used for building on Unix (or Cygwin on Windows).
 
-See [this file](BUILD_FROM_SOURCE.txt) for instructions on how to build ppremake.
+See [this file](doc/BUILD_FROM_SOURCE.txt) for instructions on how to build ppremake.
+
+See [this page](doc/ppremake.html) for documentation on ppremake, including its scripting language and how it processes source trees.
