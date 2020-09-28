@@ -19,7 +19,7 @@ no intention of getting it.
     can now successfully build the tree without having autoconf
     installed on your own machine.
 
-    Otherwise, you must have checked this tree directly out from CVS.
+    Otherwise, you must have checked this tree directly out from Git.
     Since the autoconf-generated files are not part of the source
     tree, you must now generate them.
 
@@ -31,7 +31,7 @@ no intention of getting it.
       Also, if you are on Cygwin, you will need to ensure that gcc is
       installed.
 
-  (3) Run the following commands within the ppremake directory, in
+  (3) Run the following commands within the src directory, in
       order:
 
       aclocal
