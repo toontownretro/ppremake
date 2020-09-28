@@ -41,7 +41,7 @@ no intention of getting it.
  
 (4) Now you have a tree that has been processed with autoconf, and you
     are ready to run the resulting configure script.  Type the
-    following command within the ppremake directory:
+    following command within the src directory:
 
     ./configure
 
