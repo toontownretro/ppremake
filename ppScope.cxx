@@ -1,6 +1,6 @@
 // Filename: ppScope.cxx
 // Created by:  drose (25Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppremake.h"
@@ -52,10 +52,10 @@ PPScope::ScopeStack PPScope::_scope_stack;
 ////////////////////////////////////////////////////////////////////
 //     Function: PPScope::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPScope::
-PPScope(PPNamedScopes *named_scopes) : 
+PPScope(PPNamedScopes *named_scopes) :
   _named_scopes(named_scopes)
 {
   _directory = (PPDirectory *)NULL;
@@ -205,7 +205,7 @@ define_map_variable(const string &varname, const string &key_varname,
 
   // Get all of the named scopes.
   PPNamedScopes::Scopes scopes;
-  
+
   vector<string>::const_iterator ni;
   for (ni = names.begin(); ni != names.end(); ++ni) {
     const string &name = (*ni);
@@ -282,7 +282,7 @@ add_to_map_variable(const string &varname, const string &key,
 //               subroutine_name is used only for error reporting.
 ////////////////////////////////////////////////////////////////////
 void PPScope::
-define_formals(const string &subroutine_name, 
+define_formals(const string &subroutine_name,
                const vector<string> &formals, const string &actuals) {
   vector<string> actual_words;
   tokenize_params(actuals, actual_words, true);
@@ -316,7 +316,7 @@ get_variable(const string &varname) {
   const PPSubroutine *sub = PPSubroutine::get_func(varname);
   if (sub != (const PPSubroutine *)NULL) {
     return expand_function(varname, sub, string());
-  }      
+  }
 
   //  cerr << "getvar arg is: '" << varname << "'" << endl;
 
@@ -373,7 +373,7 @@ expand_defined(const string &params) {
     if(nullstr != expand_function(varname, sub, string())) {
       return truestr;
     }
-  }      
+  }
 
   string result;
 
@@ -498,7 +498,7 @@ expand_string(const string &str) {
     // First, assuming this is the first time it has expanded to this
     // result, try to insert the result string with an initial count
     // of 1.
-    pair<ExpandResultCount::iterator, bool> r = 
+    pair<ExpandResultCount::iterator, bool> r =
       result_count.insert(ExpandResultCount::value_type(result, 1));
 
     if (!r.second) {
@@ -540,7 +540,7 @@ expand_self_reference(const string &str, const string &varname) {
     result += str.substr(p, q - p);
     p = q;
     result += r_expand_variable(str, p, (ExpandedVariable *)NULL);
-    q = str.find(reference, p);  
+    q = str.find(reference, p);
   }
 
   result += str.substr(p);
@@ -824,7 +824,7 @@ p_get_variable(const string &varname, string &result) {
     return true;
   }
 
-  if (varname == "RELDIR" && 
+  if (varname == "RELDIR" &&
       _directory != (PPDirectory *)NULL &&
       current_output_directory != (PPDirectory *)NULL) {
     // $[RELDIR] is a special variable name that evaluates to the
@@ -834,7 +834,7 @@ p_get_variable(const string &varname, string &result) {
     return true;
   }
 
-  if (varname == "DEPENDS_INDEX" && 
+  if (varname == "DEPENDS_INDEX" &&
       _directory != (PPDirectory *)NULL) {
     // $[DEPENDS_INDEX] is another special variable name that
     // evaluates to the numeric sorting index assigned to this
@@ -904,7 +904,7 @@ r_scan_variable(const string &str, size_t &vp) {
   size_t start = vp;
   size_t p = vp + 2;
   while (p < str.length() && str[p] != VARIABLE_CLOSE_BRACE) {
-    if (p + 1 < str.length() && str[p] == VARIABLE_PREFIX && 
+    if (p + 1 < str.length() && str[p] == VARIABLE_PREFIX &&
         str[p + 1] == VARIABLE_OPEN_BRACE) {
       // Here's a nested variable!  Scan past it, matching braces
       // properly.
@@ -952,7 +952,7 @@ r_expand_variable(const string &str, size_t &vp,
   // bracket.
   size_t p = vp + 2;
   while (p < str.length() && str[p] != VARIABLE_CLOSE_BRACE) {
-    if (p + 1 < str.length() && str[p] == VARIABLE_PREFIX && 
+    if (p + 1 < str.length() && str[p] == VARIABLE_PREFIX &&
         str[p + 1] == VARIABLE_OPEN_BRACE) {
       if (whitespace_at != 0) {
         // Once we have encountered whitespace, we don't expand
@@ -999,7 +999,7 @@ r_expand_variable(const string &str, size_t &vp,
     const PPSubroutine *sub = PPSubroutine::get_func(funcname);
     if (sub != (const PPSubroutine *)NULL) {
       return expand_function(funcname, sub, params);
-    }      
+    }
 
     // Is it a built-in function?
     if (funcname == "isfullpath") {
@@ -1183,7 +1183,7 @@ r_expand_variable(const string &str, size_t &vp,
   if (got_patsubst) {
     vector<string> tokens;
     tokenize(patsubst, tokens, VARIABLE_PATSUBST_DELIM);
-    
+
     if (tokens.size() != 2) {
       cerr << "inline patsubst should be of the form "
            << VARIABLE_PREFIX << VARIABLE_OPEN_BRACE << "varname"
@@ -1194,23 +1194,23 @@ r_expand_variable(const string &str, size_t &vp,
     } else {
       PPFilenamePattern from(tokens[0]);
       PPFilenamePattern to(tokens[1]);
-    
+
       if (!from.has_wildcard() || !to.has_wildcard()) {
         cerr << "The two parameters of inline patsubst must both include "
              << PATTERN_WILDCARD << ".\n";
         errors_occurred = true;
         return string();
       }
-    
+
       // Split the expansion into tokens based on the spaces.
       vector<string> words;
       tokenize_whitespace(result, words);
-      
+
       vector<string>::iterator wi;
       for (wi = words.begin(); wi != words.end(); ++wi) {
         (*wi) = to.transform(*wi, from);
       }
-    
+
       result = repaste(words, " ");
     }
   }
@@ -1227,7 +1227,7 @@ r_expand_variable(const string &str, size_t &vp,
 //               the named scopes.
 ////////////////////////////////////////////////////////////////////
 string PPScope::
-expand_variable_nested(const string &varname, 
+expand_variable_nested(const string &varname,
                        const string &scope_names) {
   if (_named_scopes == (PPNamedScopes *)NULL) {
     return string();
@@ -1238,7 +1238,7 @@ expand_variable_nested(const string &varname,
 
   // Get all of the named scopes.
   PPNamedScopes::Scopes scopes;
-  
+
   vector<string>::const_iterator ni;
   for (ni = names.begin(); ni != names.end(); ++ni) {
     const string &name = (*ni);
@@ -1518,7 +1518,7 @@ expand_libtest(const string &params) {
     libname.set_extension("dll");
     found = libname.resolve_filename(directories);
   }
-  
+
 #else  // WIN32
   libname = "lib" + libname.get_basename() + ".a";
   found = libname.resolve_filename(directories);
@@ -1650,7 +1650,7 @@ expand_shell(const string &params) {
     perror("fork");
     return string();
   }
-    
+
   if (pid == 0) {
     // Child.
 
@@ -1775,7 +1775,7 @@ expand_length(const string &params) {
   sprintf(buffer, "%d", (int) word.length());
   string result = buffer;
   return result;
-}  
+}
 
 ////////////////////////////////////////////////////////////////////
 //     Function: PPScope::expand_substr
@@ -1819,7 +1819,7 @@ expand_substr(const string &params) {
 
   string result = word.substr(start - 1, end - start + 1);
   return result;
-}  
+}
 
 ////////////////////////////////////////////////////////////////////
 //     Function: PPScope::expand_dir
@@ -1960,7 +1960,7 @@ expand_makeguid(const string &params) {
 
   PP_MD5_CTX context;
   unsigned char digest[16];
-  
+
   MD5Init(&context);
   MD5Update(&context, reinterpret_cast<const unsigned char *>(expansion.data()),
             expansion.size());
@@ -2082,8 +2082,8 @@ expand_wordlist(const string &params) {
   }
 
   vector<string> results;
-  results.insert(results.end(), 
-                 words.begin() + start - 1, 
+  results.insert(results.end(),
+                 words.begin() + start - 1,
                  words.begin() + end - 1);
 
   string result = repaste(results, " ");
@@ -2196,7 +2196,7 @@ expand_patsubst(const string &params, bool separate_words) {
   }
   size_t num_patterns = from.size();
   assert(num_patterns == to.size());
-  
+
   vector<string>::iterator wi;
   for (wi = words.begin(); wi != words.end(); ++wi) {
     bool matched = false;
@@ -2256,8 +2256,8 @@ expand_filter(const string &params) {
 
     bool matches_pattern = false;
     vector<PPFilenamePattern>::const_iterator pi;
-    for (pi = patterns.begin(); 
-         pi != patterns.end() && !matches_pattern; 
+    for (pi = patterns.begin();
+         pi != patterns.end() && !matches_pattern;
          ++pi) {
       matches_pattern = (*pi).matches(word);
     }
@@ -2313,8 +2313,8 @@ expand_filter_out(const string &params) {
 
     bool matches_pattern = false;
     vector<PPFilenamePattern>::const_iterator pi;
-    for (pi = patterns.begin(); 
-         pi != patterns.end() && !matches_pattern; 
+    for (pi = patterns.begin();
+         pi != patterns.end() && !matches_pattern;
          ++pi) {
       matches_pattern = (*pi).matches(word);
     }
@@ -2428,7 +2428,7 @@ expand_wordsubst(const string &params) {
   // Split the last parameter into tokens based on the spaces.
   vector<string> words;
   tokenize_whitespace(tokens.back(), words);
-  
+
   for (size_t i = 0; i < tokens.size() - 1; i += 2) {
     const string &subst = tokens[i];
     const string &repl = tokens[i + 1];
@@ -3083,7 +3083,7 @@ expand_closure(const string &params) {
           PPScope *scope = (*di).second;
           // Evaluate the expression within this scope.
           results.push_back(scope->expand_string(expression));
-      
+
           // What does close_on evaluate to within this scope?  That
           // points us to the next scope(s).
           next_pass.push_back(scope->expand_string(close_on));
@@ -3282,7 +3282,7 @@ expand_forscopes(const string &params) {
 //               job, really.
 ////////////////////////////////////////////////////////////////////
 string PPScope::
-expand_function(const string &funcname, 
+expand_function(const string &funcname,
                 const PPSubroutine *sub, const string &params) {
   PPScope::push_scope((PPScope *)this);
   PPScope nested_scope(_named_scopes);

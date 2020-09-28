@@ -1,6 +1,6 @@
 // Filename: ppCommandFile.cxx
 // Created by:  drose (25Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppCommandFile.h"
@@ -31,7 +31,7 @@ static const string begin_comment(BEGIN_COMMENT);
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::IfNesting::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::IfNesting::
 IfNesting(IfState state) :
@@ -70,7 +70,7 @@ pop(PPCommandFile *file) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::WriteState::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::WriteState::
 WriteState() {
@@ -82,7 +82,7 @@ WriteState() {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::WriteState::Copy Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::WriteState::
 WriteState(const WriteState &copy) :
@@ -95,7 +95,7 @@ WriteState(const WriteState &copy) :
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::WriteState::write_line
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 bool PPCommandFile::WriteState::
 write_line(const string &line) {
@@ -110,10 +110,10 @@ write_line(const string &line) {
     case WF_straight:
       (*_out) << line << "\n";
       return true;
-      
+
     case WF_collapse:
       return write_collapse_line(line);
-      
+
     case WF_makefile:
       return write_makefile_line(line);
     }
@@ -127,7 +127,7 @@ write_line(const string &line) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::WriteState::write_collapse_line
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 bool PPCommandFile::WriteState::
 write_collapse_line(const string &line) {
@@ -136,7 +136,7 @@ write_collapse_line(const string &line) {
       (*_out) << "\n";
       _last_blank = true;
     }
-    
+
   } else {
     _last_blank = false;
     (*_out) << line << "\n";
@@ -147,7 +147,7 @@ write_collapse_line(const string &line) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::WriteState::write_makefile_line
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 bool PPCommandFile::WriteState::
 write_makefile_line(const string &line) {
@@ -190,7 +190,7 @@ write_makefile_line(const string &line) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::BlockNesting::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::BlockNesting::
 BlockNesting(BlockState state, const string &name) :
@@ -241,7 +241,7 @@ pop(PPCommandFile *file) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::
 PPCommandFile(PPScope *scope) {
@@ -257,7 +257,7 @@ PPCommandFile(PPScope *scope) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::Destructor
 //       Access: Public, Virtual
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::
 ~PPCommandFile() {
@@ -412,7 +412,7 @@ read_line(string line) {
   // We only recognize comments that are proceeded by whitespace, or
   // that start at the beginning of the line.
   size_t comment = line.find(begin_comment);
-  while (comment != string::npos && 
+  while (comment != string::npos &&
          !(comment == 0 || isspace(line[comment - 1]))) {
     comment = line.find(begin_comment, comment + begin_comment.length());
   }
@@ -440,22 +440,22 @@ read_line(string line) {
       // Save up the lines for later execution if we're within a #forscopes.
       _saved_lines.push_back(line);
     }
-    
+
     if (_got_command) {
       return handle_command(line);
-      
+
     } else {
       // Find the beginning of the line--skip initial whitespace.
       size_t p = 0;
       while (p < line.length() && isspace(line[p])) {
         p++;
       }
-      
+
       if (p == line.length()) {
         // The line is empty.  Make it truly empty.
         line = "";
       } else {
-        if (((p+1) < line.length()) && (line[p] == COMMAND_PREFIX) && 
+        if (((p+1) < line.length()) && (line[p] == COMMAND_PREFIX) &&
             isalpha(line[p + 1])) {
           // This is a special command.
           return handle_command(line.substr(p + 1));
@@ -572,7 +572,7 @@ handle_command(const string &line) {
       p++;
     }
     _command = line.substr(0, p);
-  
+
     // Skip whitespace between the command and its arguments.
     while (p < line.length() && isspace(line[p])) {
       p++;
@@ -602,7 +602,7 @@ handle_command(const string &line) {
 
   } else if (_command == "elif") {
     return handle_elif_command();
-  
+
   } else if (_command == "else") {
     return handle_else_command();
 
@@ -694,8 +694,11 @@ handle_command(const string &line) {
 
   } else if (_command == "push") {
     return handle_push_command();
+
+  } else if (_command == "concatcxx") {
+    return handle_concatcxx_command();
   }
-   
+
   cerr << "Invalid command: " << COMMAND_PREFIX << _command << "\n";
   errors_occurred = true;
   return false;
@@ -731,7 +734,7 @@ handle_if_command() {
         is_empty = isspace(*si);
       }
     }
-    
+
     IfState state = is_empty ? IS_off : IS_on;
     IfNesting *nest = new IfNesting(state);
     nest->push(this);
@@ -854,14 +857,14 @@ handle_begin_command() {
   BlockNesting *nest = new BlockNesting(BS_begin, name);
 
   if (contains_whitespace(name)) {
-    cerr << "Attempt to define scope named \"" << name 
+    cerr << "Attempt to define scope named \"" << name
          << "\".\nScope names may not contain whitespace.\n";
     errors_occurred = true;
     return false;
   }
 
   if (name.find(SCOPE_DIRNAME_SEPARATOR) != string::npos) {
-    cerr << "Attempt to define scope named \"" << name 
+    cerr << "Attempt to define scope named \"" << name
          << "\".\nScope names may not contain the '"
          << SCOPE_DIRNAME_SEPARATOR << "' character.\n";
     errors_occurred = true;
@@ -923,7 +926,7 @@ handle_for_command() {
   vector<string> words;
   _scope->tokenize_params(_params.substr(p), words, true);
   if (words.size() != 2 && words.size() != 3) {
-    cerr << "Invalid numeric range: '" << _params.substr(p) 
+    cerr << "Invalid numeric range: '" << _params.substr(p)
          << "' for #for " << name << "\n";
     errors_occurred = true;
     return false;
@@ -1155,7 +1158,7 @@ handle_output_command() {
       errors_occurred = true;
       return false;
     }
-    
+
     if (filename.is_local()) {
       string prefix = _scope->expand_variable("DIRPREFIX");
       filename = Filename(prefix, filename);
@@ -1373,7 +1376,7 @@ handle_include_command() {
 
   // We allow optional quotation marks around the filename.
   if (filename.length() >= 2 &&
-      filename[0] == '"' && 
+      filename[0] == '"' &&
       filename[filename.length() - 1] == '"') {
     filename = filename.substr(1, filename.length() - 2);
   }
@@ -1395,7 +1398,7 @@ handle_sinclude_command() {
 
   // We allow optional quotation marks around the filename.
   if (filename.length() >= 2 &&
-      filename[0] == '"' && 
+      filename[0] == '"' &&
       filename[filename.length() - 1] == '"') {
     filename = filename.substr(1, filename.length() - 2);
   }
@@ -1424,7 +1427,7 @@ handle_copy_command() {
 
   // We allow optional quotation marks around the filename.
   if (filename.length() >= 2 &&
-      filename[0] == '"' && 
+      filename[0] == '"' &&
       filename[filename.length() - 1] == '"') {
     filename = filename.substr(1, filename.length() - 2);
   }
@@ -1521,7 +1524,7 @@ handle_call_command() {
 bool PPCommandFile::
 handle_error_command() {
   string message = trim_blanks(_scope->expand_string(_params));
-  
+
   if (!message.empty()) {
     cerr << message << "\n";
     errors_occurred = true;
@@ -1543,12 +1546,12 @@ handle_mkdir_command() {
   vector<string>::const_iterator wi;
   for (wi = words.begin(); wi != words.end(); ++wi) {
     Filename dirname(*wi);
-    
+
     if (dirname.is_local()) {
       string prefix = _scope->expand_variable("DIRPREFIX");
       dirname = Filename(prefix, dirname);
     }
-    
+
     Filename filename(dirname, "file");
     if (!filename.make_dir()) {
       if (!dirname.is_directory()) {
@@ -1583,7 +1586,7 @@ handle_defer_command() {
     cerr << "Warning: variable " << varname
          << " shadowed by function definition.\n";
   }
-  
+
   // Skip whitespace between the variable name and its definition.
   while (p < _params.length() && isspace(_params[p])) {
     p++;
@@ -1621,7 +1624,7 @@ handle_define_command() {
     cerr << "Warning: variable " << varname
          << " shadowed by function definition.\n";
   }
-  
+
   // Skip whitespace between the variable name and its definition.
   while (p < _params.length() && isspace(_params[p])) {
     p++;
@@ -1661,7 +1664,7 @@ handle_set_command() {
     cerr << "Warning: variable " << varname
          << " shadowed by function definition.\n";
   }
-  
+
   // Skip whitespace between the variable name and its definition.
   while (p < _params.length() && isspace(_params[p])) {
     p++;
@@ -1691,7 +1694,7 @@ handle_map_command() {
   // Pull off the first word and the rest of the params.
   size_t p = _scope->scan_to_whitespace(_params);
   string varname = trim_blanks(_scope->expand_string(_params.substr(0, p)));
-  
+
   // Skip whitespace between the variable name and its definition.
   while (p < _params.length() && isspace(_params[p])) {
     p++;
@@ -1712,7 +1715,7 @@ handle_addmap_command() {
   // Pull off the first word and the rest of the params.
   size_t p = _scope->scan_to_whitespace(_params);
   string varname = trim_blanks(_scope->expand_string(_params.substr(0, p)));
-  
+
   // Skip whitespace between the variable name and the key.
   while (p < _params.length() && isspace(_params[p])) {
     p++;
@@ -1776,6 +1779,118 @@ handle_push_command() {
       p++;
     }
   }
+  return true;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPCommandFile::expand_concatenate_to_cxx
+//       Access: Private
+//  Description: Handles the "concatxx" command.  This creates a
+//               single C++ file which includes a const char[]
+//               containing the bytes from one or more files.
+////////////////////////////////////////////////////////////////////
+bool PPCommandFile::
+handle_concatcxx_command() {
+  // Split the string up into tokens based on the commas.
+  vector<string> tokens;
+  _scope->tokenize_params(_params, tokens, false);
+
+  if (tokens.size() != 3) {
+    cerr << "concatcxx requires three parameters.\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  // The first parameter is the output file
+  Filename output_filename = trim_blanks(_scope->expand_string(tokens[0]));
+  output_filename = output_filename.to_os_specific();
+
+  cout << output_filename.get_fullpath() << endl;
+
+  if (output_filename.length() == (size_t)0) {
+    cerr << "concatcxx: Output filename (parameter 0) cannot be empty.\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  // The second parameter is the symbol name.
+  string symbol_name = trim_blanks(_scope->expand_string(tokens[1]));
+  cout << symbol_name << endl;
+  if (symbol_name.empty()) {
+    cerr << "concatcxx: Symbol name (parameter 1) cannot be empty.\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  // The third parameter is the list of files that we will concatenate.
+  vector<string> inputs;
+  tokenize_whitespace(_scope->expand_string(tokens[2]), inputs);
+
+  if (inputs.size() == (size_t)0) {
+    cerr << "concatcxx: No input filenames specified (parameter 2).\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  ostringstream iss;
+
+  for (size_t i = 0; i < inputs.size(); i++) {
+    Filename input_filename = Filename(inputs[i]).to_os_specific();
+    cout << input_filename.get_fullpath() << endl;
+    ifstream input_stream;
+    input_filename.set_text();
+    if (!input_filename.open_read(input_stream)) {
+      cerr << "concatcxx: could not open input file " << input_filename.get_fullpath() << ".\n";
+      errors_occurred = true;
+      input_stream.close();
+      return false;
+    }
+
+    iss << input_stream.rdbuf();
+
+    input_stream.close();
+  }
+
+  string input_data = iss.str();
+
+  ostringstream ss;
+  ss << "/*******************************************************************\n"
+        " * Generated automatically by " << PACKAGE << " " << PACKAGE_VERSION << ".\n"
+        " ***************************** DO NOT EDIT *************************/\n\n";
+
+  ss << "extern const char " << symbol_name << "[] = {\n";
+
+  size_t offset = 0;
+  for (size_t i = 0; i < input_data.size(); i++) {
+    unsigned char c = input_data[i];
+
+    if (offset == 0) {
+      ss << " ";
+    }
+
+    ss << " 0x" << hex << (int)c << ",";
+    offset++;
+    if (offset >= 12) {
+      ss << "\n";
+      offset = 0;
+    }
+  }
+
+  ss << "\n};\n";
+
+  ofstream output_stream;
+  output_filename.set_text();
+  if (!output_filename.open_write(output_stream, true)) {
+    cerr << "concatcxx: could not open output file " << output_filename.get_fullpath() << ".\n";
+    errors_occurred = true;
+    output_stream.close();
+    return false;
+  }
+
+  output_stream << ss.str();
+  output_stream.flush();
+  output_stream.close();
+
   return true;
 }
 
@@ -1979,7 +2094,7 @@ replay_forscopes(const string &name) {
   for (si = scopes.begin(); si != scopes.end() && okflag; ++si) {
     PPScope::push_scope(_scope);
     _scope = (*si);
-    
+
     vector<string>::const_iterator li;
     for (li = lines.begin(); li != lines.end() && okflag; ++li) {
       okflag = read_line(*li);
@@ -2061,7 +2176,7 @@ replay_formap(const string &varname, const string &mapvar) {
   // Now look up the map variable.
   PPScope::MapVariableDefinition &def = _scope->find_map_variable(mapvar);
   if (&def == &PPScope::_null_map_def) {
-    cerr << "Undefined map variable: #formap " << varname << " " 
+    cerr << "Undefined map variable: #formap " << varname << " "
          << mapvar << "\n";
     errors_occurred = true;
     return false;
@@ -2111,7 +2226,7 @@ compare_output(const string &new_contents, Filename filename,
     filename.set_binary();
   } else {
     filename.set_text();
-  }    
+  }
   bool exists = filename.exists();
   bool differ = false;
 
@@ -2133,7 +2248,7 @@ compare_output(const string &new_contents, Filename filename,
       if (in.gcount() != len) {
         // The wrong number of bytes.
         differ = true;
-        
+
       } else {
         differ = !(new_contents == string(orig_contents, len));
       }
@@ -2150,14 +2265,14 @@ compare_output(const string &new_contents, Filename filename,
         temp_filename.set_binary();
       } else {
         temp_filename.set_text();
-      }    
+      }
       ofstream out_b;
       if (!temp_filename.open_write(out_b)) {
         cerr << "Unable to open temporary file " << filename << " for writing.\n";
         errors_occurred = true;
         return false;
       }
-      
+
       out_b.write(new_contents.data(), new_contents.length());
 
       bool diff_ok = true;
@@ -2167,7 +2282,7 @@ compare_output(const string &new_contents, Filename filename,
         diff_ok = true;
       }
       out_b.close();
-      string command = "diff -ub '" + filename.get_fullpath() + "' '" + 
+      string command = "diff -ub '" + filename.get_fullpath() + "' '" +
         temp_filename.get_fullpath() + "'";
       int sys_result = system(command.c_str());
       if (sys_result < 0) {
@@ -2179,14 +2294,14 @@ compare_output(const string &new_contents, Filename filename,
       temp_filename.unlink();
 
       return diff_ok;
-      
+
     } else
 #endif
       if (dry_run) {
         cerr << "Would generate " << filename << "\n";
       } else {
         cerr << "Generating " << filename << "\n";
-        
+
         if (exists) {
           if (!filename.unlink()) {
             cerr << "Unable to remove old " << filename << "\n";
@@ -2194,16 +2309,16 @@ compare_output(const string &new_contents, Filename filename,
             return false;
           }
         }
-        
+
         ofstream out_b;
         if (!filename.open_write(out_b)) {
           cerr << "Unable to open file " << filename << " for writing.\n";
           errors_occurred = true;
           return false;
         }
-        
+
         out_b.write(new_contents.data(), new_contents.length());
-        
+
         if (!out_b) {
           cerr << "Unable to write to file " << filename << "\n";
           errors_occurred = true;
@@ -2211,7 +2326,7 @@ compare_output(const string &new_contents, Filename filename,
         }
         out_b.close();
       }
-      
+
   } else {
     // Even though the file is unchanged, unless the "notouch" flag is
     // set, we want to update the modification time.  This helps the
@@ -2235,7 +2350,7 @@ compare_output(const string &new_contents, Filename filename,
 ////////////////////////////////////////////////////////////////////
 bool PPCommandFile::
 failed_if() const {
-  return (_if_nesting != (IfNesting *)NULL && 
+  return (_if_nesting != (IfNesting *)NULL &&
           (_if_nesting->_state == IS_off || _if_nesting->_state == IS_done));
 }
 
@@ -2253,7 +2368,7 @@ is_valid_formal(const string &formal_parameter_name) const {
   if (formal_parameter_name.empty()) {
     return false;
   }
-  
+
   string::const_iterator si;
   for (si = formal_parameter_name.begin();
        si != formal_parameter_name.end();
@@ -2309,7 +2424,7 @@ PushFilename(PPScope *scope, const string &filename) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::PushFilename::Destructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPCommandFile::PushFilename::
 ~PushFilename() {

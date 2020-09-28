@@ -1,6 +1,6 @@
 // Filename: ppScope.h
 // Created by:  drose (25Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #ifndef PPSCOPE_H
@@ -81,7 +81,7 @@ private:
   string r_scan_variable(const string &str, size_t &vp);
   string r_expand_variable(const string &str, size_t &vp,
                PPScope::ExpandedVariable *expanded);
-  string expand_variable_nested(const string &varname, 
+  string expand_variable_nested(const string &varname,
                 const string &scope_names);
 
   string expand_isfullpath(const string &params);
@@ -150,7 +150,7 @@ private:
   string expand_map_variable(const string &varname, const string &params);
   string expand_map_variable(const string &varname, const string &expression,
                  const vector<string> &keys);
-  
+
   void
   r_expand_matrix(vector<string> &results,
           const vector<vector<string> > &words,

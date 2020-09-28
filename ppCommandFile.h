@@ -1,6 +1,6 @@
 // Filename: ppCommandFile.h
 // Created by:  drose (25Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #ifndef PPCOMMANDFILE_H
@@ -70,6 +70,8 @@ protected:
   bool handle_map_command();
   bool handle_addmap_command();
   bool handle_push_command();
+
+  bool handle_concatcxx_command();
 
   bool include_file(Filename filename);
   bool replay_while(const string &name);
@@ -156,7 +158,7 @@ private:
     OF_notouch  = 0x001,
     OF_binary   = 0x002,
   };
-  
+
   class BlockNesting {
   public:
     BlockNesting(BlockState state, const string &name);
