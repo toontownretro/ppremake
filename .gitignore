@@ -11,5 +11,6 @@ src/configure
 src/ipch/
 src/ppremake
 *.exe
+*.o
 src/stamp-h1
 *Makefile

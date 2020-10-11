@@ -1805,8 +1805,6 @@ handle_concatcxx_command() {
   Filename output_filename = trim_blanks(_scope->expand_string(tokens[0]));
   output_filename = output_filename.to_os_specific();
 
-  cout << output_filename.get_fullpath() << endl;
-
   if (output_filename.length() == (size_t)0) {
     cerr << "concatcxx: Output filename (parameter 0) cannot be empty.\n";
     errors_occurred = true;
@@ -1815,7 +1813,6 @@ handle_concatcxx_command() {
 
   // The second parameter is the symbol name.
   string symbol_name = trim_blanks(_scope->expand_string(tokens[1]));
-  cout << symbol_name << endl;
   if (symbol_name.empty()) {
     cerr << "concatcxx: Symbol name (parameter 1) cannot be empty.\n";
     errors_occurred = true;
@@ -1836,7 +1833,6 @@ handle_concatcxx_command() {
 
   for (size_t i = 0; i < inputs.size(); i++) {
     Filename input_filename = Filename(inputs[i]).to_os_specific();
-    cout << input_filename.get_fullpath() << endl;
     ifstream input_stream;
     input_filename.set_text();
     if (!input_filename.open_read(input_stream)) {
