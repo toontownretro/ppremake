@@ -10,6 +10,7 @@ src/config.status
 src/configure
 src/ipch/
 src/ppremake
+built/
 *.exe
 *.obj
 *.lib
