@@ -11,6 +11,14 @@ src/configure
 src/ipch/
 src/ppremake
 *.exe
+*.obj
+*.lib
+*.pdb
 *.o
+*.filters
+*.user
 src/stamp-h1
+src/.vs
 *Makefile
+src/x64
+src/x86
