@@ -81,6 +81,9 @@ fi
 
 if test "$PLATFORM" = "Cygwin"; then
   AC_DEFINE(HAVE_CYGWIN, 1, [Define if we're compiling with Cygwin.])
+  if test "$host_cpu" = "x86_64"; then
+    PLATFORM=Cygwin64
+  fi
 fi
 
 if test "$PLATFORM" = "OSX"; then

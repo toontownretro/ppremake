@@ -68,8 +68,22 @@
 // available, we fall back to our own convention for converting
 // pathnames.
 #ifdef HAVE_CYGWIN
-extern "C" void cygwin_conv_to_win32_path(const char *path, char *win32);
-extern "C" void cygwin_conv_to_posix_path(const char *path, char *posix);
+#include <sys/cygwin.h>
+
+// We have to recreate these functions because they were removed in Cygwin 2.x.
+void
+cygwin_conv_to_win32_path(const char *path, char *win32) {
+  ssize_t size = cygwin_conv_path(CCP_POSIX_TO_WIN_A, path, NULL, 0);
+
+  cygwin_conv_path(CCP_POSIX_TO_WIN_A, path, win32, size);
+}
+
+void
+cygwin_conv_to_posix_path(const char *path, char *posix) {
+  ssize_t size = cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, NULL, 0);
+
+  cygwin_conv_path(CCP_WIN_A_TO_POSIX, path, posix, size);
+}
 #endif
 
 // Windows uses the convention \\hostname\path\to\file to represent a
@@ -831,7 +845,7 @@ make_true_case() {
     return true;
   }
 
-#ifdef WIN32
+#ifdef WIN32_VC
   string os_specific = to_os_specific();
 
   // First, we have to convert it to its short name, then back to its
@@ -978,7 +992,7 @@ string Filename::
 to_os_short_name() const {
   assert(!get_pattern());
 
-#ifdef WIN32
+#ifdef WIN32_VC
   string os_specific = to_os_specific();
   
   char short_name[MAX_PATH + 1];
@@ -1012,7 +1026,7 @@ string Filename::
 to_os_long_name() const {
   assert(!get_pattern());
 
-#ifdef WIN32
+#ifdef WIN32_VC
   string os_specific = to_os_specific();
   
   char long_name[MAX_PATH + 1];

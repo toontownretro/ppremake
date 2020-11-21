@@ -29,7 +29,13 @@
 
 /* The platform ppremake is compiled for.  This primarily controls the
    initial setting of the $[PLATFORM] variable. */
+#ifdef _WIN64
+#define PLATFORM "Win64"
+#elif defined(_WIN32)
 #define PLATFORM "Win32"
+#else
+#pragma error("Unknown Windows platform!")
+#endif
 
 /* Define if you have the `getopt' function.  */
 /* #undef HAVE_GETOPT */
@@ -82,8 +88,11 @@
 /* Name of package */
 #define PACKAGE "ppremake"
 
+/* Define to the version of this package. */
+#define PACKAGE_VERSION ""
+
 /* The default value of INSTALL_DIR within ppremake. */
-#define INSTALL_DIR "C:/Panda3d"
+#define INSTALL_DIR "C:/panda"
 
 /****************  UPDATE VERSION NUMBER HERE  ****************
  **         Also be sure to change the version number        **
