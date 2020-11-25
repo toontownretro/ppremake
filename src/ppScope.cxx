@@ -1503,42 +1503,46 @@ expand_libtest(const string &params) {
     // No libraries is a default "false".
     return string();
   }
+  
+  // We now require all given libraries to be found for the test to pass.
+  
+  for (size_t i = 0; i < libnames.size(); i++) {
+    Filename libname = libnames[i];
 
-  // We only bother to search for the first library name in the list.
-  Filename libname = libnames[0];
-
-  bool found = false;
+    bool found = false;
 
 #ifdef WIN32
-  if (libname.get_extension() != string("lib")) {
-    libname = "lib" + libname.get_basename() + ".lib";
-  }
-  found = libname.resolve_filename(directories);
-  if (!found) {
-    libname.set_extension("dll");
+    if (libname.get_extension() != string("lib")) {
+      libname = "lib" + libname.get_basename() + ".lib";
+    }
     found = libname.resolve_filename(directories);
-  }
+    if (!found) {
+      libname.set_extension("dll");
+      found = libname.resolve_filename(directories);
+    }
 
 #else  // WIN32
-  libname = "lib" + libname.get_basename() + ".a";
-  found = libname.resolve_filename(directories);
-  if (!found) {
-    libname.set_extension("so");
+    libname = "lib" + libname.get_basename() + ".a";
     found = libname.resolve_filename(directories);
-  }
+    if (!found) {
+      libname.set_extension("so");
+      found = libname.resolve_filename(directories);
+    }
 #ifdef HAVE_OSX
-  if (!found) {
-    libname.set_extension("dylib");
-    found = libname.resolve_filename(directories);
-  }
+    if (!found) {
+      libname.set_extension("dylib");
+      found = libname.resolve_filename(directories);
+    }
 #endif  // HAVE_OSX
 #endif  // WIN32
 
-  if (found) {
-    return libname.get_fullpath();
-  } else {
-    return string();
+    if (!found) {
+      //cerr << "libtest: " << libname.get_fullpath() << " not found.\n";
+      return string();
+    }
   }
+  
+  return "1";
 }
 
 ////////////////////////////////////////////////////////////////////
