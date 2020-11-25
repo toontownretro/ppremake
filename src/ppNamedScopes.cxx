@@ -1,6 +1,6 @@
 // Filename: ppNamedScopes.cxx
 // Created by:  drose (27Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppNamedScopes.h"
@@ -46,7 +46,7 @@ public:
 ////////////////////////////////////////////////////////////////////
 //     Function: PPNamedScopes::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPNamedScopes::
 PPNamedScopes() {
@@ -55,7 +55,7 @@ PPNamedScopes() {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPNamedScopes::Destructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPNamedScopes::
 ~PPNamedScopes() {
@@ -70,10 +70,13 @@ PPNamedScopes::
 PPScope *PPNamedScopes::
 make_scope(const string &name) {
   PPScope *scope = new PPScope(this);
+  // Store the scope name in a variable on the scope, so the name can be
+  // queried by .pp scripts (for instance, during a #forscopes).
+  scope->define_variable("SCOPE", name);
   _directories[_current][name].push_back(scope);
   return scope;
 }
- 
+
 ////////////////////////////////////////////////////////////////////
 //     Function: PPNamedScopes::get_scopes
 //       Access: Public
