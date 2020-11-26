@@ -1010,6 +1010,10 @@ the current source hierarchy.</dd>
 <dd>The directory containing the current filename being read, with a
 trailing slash; this everything up to and including the rightmost
 slash in <tt class="literal"><span class="pre">$[THISFILENAME]</span></tt>.</dd>
+<dt><tt class="literal"><span class="pre">$[SCOPE]</span></tt></dt>
+<dd>The name of the named scope that is currently being processed.  Note that this variable is only defined
+for <em>named</em> scopes; that is, scopes created with an explicit name via <tt class="literal"><span class="pre">#begin..#end</span></tt>.
+</dd>
 </dl>
 <p>The following variable is built into the ppremake executable, and is
 filled in after all Sources.pp files have been read:</p>
