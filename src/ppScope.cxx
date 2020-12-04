@@ -1360,7 +1360,7 @@ expand_unixfilename(const string &params) {
 ////////////////////////////////////////////////////////////////////
 string PPScope::
 expand_unixshortname(const string &params) {
-  Filename filename = Filename::from_os_specific(params);
+  Filename filename = Filename::from_os_specific(expand_string(params));
   filename = Filename::from_os_specific(filename.to_os_short_name());
 
   return filename;
@@ -1503,9 +1503,9 @@ expand_libtest(const string &params) {
     // No libraries is a default "false".
     return string();
   }
-  
+
   // We now require all given libraries to be found for the test to pass.
-  
+
   for (size_t i = 0; i < libnames.size(); i++) {
     Filename libname = libnames[i];
 
@@ -1541,7 +1541,7 @@ expand_libtest(const string &params) {
       return string();
     }
   }
-  
+
   return "1";
 }
 
