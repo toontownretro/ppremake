@@ -1872,6 +1872,11 @@ handle_concatcxx_command() {
     }
   }
 
+  // Null-terminate the array.
+  if (offset == 0) {
+    ss << " ";
+  }
+  ss << " 0,";
   ss << "\n};\n";
 
   ofstream output_stream;
