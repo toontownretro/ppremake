@@ -1,6 +1,6 @@
 // Filename: ppMain.cxx
 // Created by:  drose (28Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppMain.h"
@@ -27,7 +27,7 @@ Filename PPMain::_root;
 ////////////////////////////////////////////////////////////////////
 //     Function: PPMain::Constructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPMain::
 PPMain(PPScope *global_scope) {
@@ -46,7 +46,7 @@ PPMain(PPScope *global_scope) {
 ////////////////////////////////////////////////////////////////////
 //     Function: PPMain::Destructor
 //       Access: Public
-//  Description: 
+//  Description:
 ////////////////////////////////////////////////////////////////////
 PPMain::
 ~PPMain() {
@@ -167,9 +167,9 @@ read_source(const string &root) {
     return false;
   }
 
-  string dependable_header_dirs = 
+  string dependable_header_dirs =
     _def_scope->expand_variable("DEPENDABLE_HEADER_DIRS");
-  string cache_filename = 
+  string cache_filename =
     _def_scope->expand_variable("DEPENDENCY_CACHE_FILENAME");
 
   if (!_tree.scan_extra_depends(dependable_header_dirs, cache_filename)) {
@@ -199,6 +199,17 @@ process_all() {
     return false;
   }
 
+  // Execute an optional post-template script.  This is a script that runs
+  // after all the template scripts have been executed.
+  string post_filename = _def_scope->expand_variable("POST_TEMPLATE_FILE");
+  if (!post_filename.empty()) {
+    PPCommandFile post_templ(_def_scope);
+    if (!post_templ.read_file(post_filename)) {
+      cerr << "Error reading post-template file " << post_filename << "\n";
+      return false;
+    }
+  }
+
   if (!cache_filename.empty()) {
     _tree.update_file_dependencies(cache_filename);
   }
@@ -225,7 +236,7 @@ process(string dirname) {
   if (dirname == ".") {
     dirname = _original_working_dir;
   }
-  
+
   PPDirectory *dir = _tree.find_dirname(dirname);
   if (dir == (PPDirectory *)NULL) {
     cerr << "Unknown directory: " << dirname << "\n";
@@ -380,7 +391,7 @@ read_global_file() {
     cerr << "No definition given for $[GLOBAL_FILE], cannot process.\n";
     return false;
   }
-  
+
   PPCommandFile global(_def_scope);
   if (!global.read_file(global_filename)) {
     cerr << "Error reading global definition file "

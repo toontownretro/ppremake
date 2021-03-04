@@ -46,6 +46,7 @@
 static const string variable_patsubst(VARIABLE_PATSUBST);
 
 PPScope::MapVariableDefinition PPScope::_null_map_def;
+PPScope::DictVariableDefinition PPScope::_null_dict_def;
 
 PPScope::ScopeStack PPScope::_scope_stack;
 
@@ -269,6 +270,59 @@ add_to_map_variable(const string &varname, const string &key,
 }
 
 ////////////////////////////////////////////////////////////////////
+//     Function: PPScope::define_dict_variable
+//       Access: Public
+//  Description: Defines a new key-value dictionary variable in this
+//               scope.
+///////////////////////////////////////////////////////////////////
+void PPScope::
+define_dict_variable(const string &varname) {
+  DictVariableDefinition &def = _dict_variables[varname];
+  def.clear();
+  define_variable(varname, "");
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPScope::add_to_dict_variable
+//       Access: Public
+//  Description: Adds a new key-value entry into the given
+//               dictionary variable.
+///////////////////////////////////////////////////////////////////
+void PPScope::
+add_to_dict_variable(const string &varname, const string &key,
+                     const string &value) {
+  DictVariableDefinition &def = find_dict_variable(varname);
+  if (&def == &_null_dict_def) {
+    cerr << "Warning:  Undefined dictionary variable: " << varname << "\n";
+    return;
+  }
+
+  def[key] = value;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPScope::get_dict_value
+//       Access: Public
+//  Description: Returns the value associated with the given key in
+//               the given dictionary variable.
+///////////////////////////////////////////////////////////////////
+string PPScope::
+get_dict_value(const string &varname, const string &key) {
+  DictVariableDefinition &def = find_dict_variable(varname);
+  if (&def == &_null_dict_def) {
+    cerr << "Warning:  Undefined dictionary variable: " << varname << "\n";
+    return string();
+  }
+
+  auto dit = def.find(key);
+  if (dit == def.end()) {
+    return string();
+  }
+
+  return (*dit).second;
+}
+
+////////////////////////////////////////////////////////////////////
 //     Function: PPScope::define_formals
 //       Access: Public
 //  Description: Supplies values to a slew of variables at once,
@@ -436,6 +490,34 @@ find_map_variable(const string &varname) {
 
   // Nada.
   return _null_map_def;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPScope::find_dict_variable
+//       Access: Public
+//  Description: Looks for the dict variable definition in this scope
+//               or some ancestor scope.  Returns the dict variable
+//               definition if it is found, or _null_dict_def if it is
+//               not.
+////////////////////////////////////////////////////////////////////
+PPScope::DictVariableDefinition &PPScope::
+find_dict_variable(const string &varname) {
+  DictVariableDefinition &def = p_find_dict_variable(varname);
+  if (&def != &_null_dict_def) {
+    return def;
+  }
+
+  // No such map variable.  Check the stack.
+  ScopeStack::reverse_iterator si;
+  for (si = _scope_stack.rbegin(); si != _scope_stack.rend(); ++si) {
+    DictVariableDefinition &def = (*si)->p_find_dict_variable(varname);
+    if (&def != &_null_dict_def) {
+      return def;
+    }
+  }
+
+  // Nada.
+  return _null_dict_def;
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -1128,6 +1210,12 @@ r_expand_variable(const string &str, size_t &vp,
       return expand_foreach(params);
     } else if (funcname == "forscopes") {
       return expand_forscopes(params);
+    }
+
+    // Maybe it's a dictionary variable.
+    DictVariableDefinition &ddef = find_dict_variable(funcname);
+    if (&ddef != &_null_dict_def) {
+      return expand_dict_variable(funcname, params);
     }
 
     // It must be a map variable.
@@ -3399,6 +3487,26 @@ expand_map_variable(const string &varname, const string &expression,
 }
 
 ////////////////////////////////////////////////////////////////////
+//     Function: PPScope::expand_dict_variable
+//       Access: Private
+//  Description: Expands a dictionary variable function reference.
+////////////////////////////////////////////////////////////////////
+string PPScope::
+expand_dict_variable(const string &varname, const string &params) {
+  vector_string tokens;
+  tokenize_params(params, tokens, true);
+
+  if (tokens.size() == 1) {
+    // Looking up a key.
+    return get_dict_value(varname, tokens[0]);
+  } else {
+    // There aren't any other dictionary functions at the moment.
+    cerr << "Warning:  Invalid number of parameters to dictionary expansion.\n";
+    return string();
+  }
+}
+
+////////////////////////////////////////////////////////////////////
 //     Function: PPScope::r_expand_matrix
 //       Access: Private
 //  Description: The recursive implementation of expand_matrix().
@@ -3442,6 +3550,27 @@ p_find_map_variable(const string &varname) {
   }
 
   return _null_map_def;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPScope::p_find_dict_variable
+//       Access: Private
+//  Description: The implementation of find_dict_variable() for a
+//               particular static scope, without checking the stack.
+////////////////////////////////////////////////////////////////////
+PPScope::DictVariableDefinition &PPScope::
+p_find_dict_variable(const string &varname) {
+  DictVariables::const_iterator mvi;
+  mvi = _dict_variables.find(varname);
+  if (mvi != _dict_variables.end()) {
+    return (DictVariableDefinition &)(*mvi).second;
+  }
+
+  if (_parent_scope != (PPScope *)NULL) {
+    return _parent_scope->p_find_dict_variable(varname);
+  }
+
+  return _null_dict_def;
 }
 
 ////////////////////////////////////////////////////////////////////

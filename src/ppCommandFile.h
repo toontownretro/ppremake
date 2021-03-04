@@ -50,6 +50,7 @@ protected:
   bool handle_forscopes_command();
   bool handle_foreach_command();
   bool handle_formap_command();
+  bool handle_fordict_command();
   bool handle_defsub_command(bool is_defsub);
   bool handle_output_command();
   bool handle_end_command();
@@ -69,6 +70,8 @@ protected:
   bool handle_set_command();
   bool handle_map_command();
   bool handle_addmap_command();
+  bool handle_dict_command();
+  bool handle_adddict_command();
   bool handle_push_command();
 
   bool handle_concatcxx_command();
@@ -79,6 +82,7 @@ protected:
   bool replay_forscopes(const string &name);
   bool replay_foreach(const string &varname, const vector<string> &words);
   bool replay_formap(const string &varname, const string &mapvar);
+  bool replay_fordict(const string &varname, const string &dictvar);
   bool compare_output(const string &new_contents, Filename filename,
                       bool notouch, bool binary);
   bool failed_if() const;
@@ -129,6 +133,8 @@ private:
     BS_nested_foreach,
     BS_formap,
     BS_nested_formap,
+    BS_fordict,
+    BS_nested_fordict,
     BS_defsub,
     BS_defun,
     BS_output

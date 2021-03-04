@@ -1,6 +1,6 @@
 // Filename: ppremake.cxx
 // Created by:  drose (25Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppremake.h"
@@ -41,7 +41,7 @@ DebugExpand debug_expand;
 
 class DebugExpandReport {
 public:
-  DebugExpandReport(DebugExpand::const_iterator source, 
+  DebugExpandReport(DebugExpand::const_iterator source,
                     ExpandResultCount::const_iterator result) :
     _source(source),
     _result(result)
@@ -60,11 +60,11 @@ public:
   bool operator < (const DebugExpandReport &other) const {
     return get_count() > other.get_count();
   }
-    
+
   DebugExpand::const_iterator _source;
   ExpandResultCount::const_iterator _result;
 };
-  
+
 
 static void
 usage() {
@@ -137,7 +137,7 @@ usage() {
 
 static void
 report_version() {
-  cerr << "This is " << PACKAGE << " version " << VERSION 
+  cerr << "This is " << PACKAGE << " version " << VERSION
        << " built on " << __DATE__ << " at " << __TIME__
        << ".\n"
        << "Default platform is \"" << PLATFORM << "\".\n";
@@ -169,6 +169,9 @@ check_one_file(const string &dir_prefix, const vector<string> &words) {
   struct stat st;
   if (stat(pathname.c_str(), &st) < 0) {
     // The file doesn't even exist!
+    if (true) {
+      cerr << pathname << " doesn't exist, dependency is stale.\n";
+    }
     return false;
   }
 
@@ -212,7 +215,7 @@ check_one_file(const string &dir_prefix, const vector<string> &words) {
     }
     getline(in, line);
   }
-  
+
   // Now check that the two sets are equivalent.
   return (expected_files == found_files);
 }
@@ -277,7 +280,7 @@ main(int argc, char *argv[]) {
 
   string platform;
   char *platform_env = getenv("PPREMAKE_PLATFORM");
-  if(platform_env==NULL) { 
+  if(platform_env==NULL) {
     platform=PLATFORM;
   } else {
     platform=platform_env;
@@ -411,6 +414,7 @@ main(int argc, char *argv[]) {
   global_scope.define_variable("SPACE", " ");
   global_scope.define_variable("DOLLAR", "$");
   global_scope.define_variable("HASH", "#");
+  global_scope.define_variable("DOUBLESLASH", "//");
 
   PPMain ppmain(&global_scope);
   if (!ppmain.read_source(".")) {
@@ -472,7 +476,7 @@ main(int argc, char *argv[]) {
 
     int num_reports = min((int)report.size(), debug_expansions);
     for (int i = 0; i < num_reports; i++) {
-      cerr << "\"" << report[i].get_source() << "\" -> \"" 
+      cerr << "\"" << report[i].get_source() << "\" -> \""
            << report[i].get_result()
            << "\" (" << report[i].get_count() << ")\n";
     }

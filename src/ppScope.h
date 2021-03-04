@@ -25,6 +25,7 @@ class PPSubroutine;
 class PPScope {
 public:
   typedef map<string, PPScope *> MapVariableDefinition;
+  typedef map<string, string> DictVariableDefinition;
 
   PPScope(PPNamedScopes *named_scopes);
 
@@ -40,12 +41,17 @@ public:
                const string &scope_names);
   void add_to_map_variable(const string &varname, const string &key,
                PPScope *scope);
+  void define_dict_variable(const std::string &varname);
+  void add_to_dict_variable(const string &varname, const std::string &key,
+                            const std::string &value);
+  string get_dict_value(const string &varname, const string &key);
   void define_formals(const string &subroutine_name,
               const vector<string> &formals, const string &actuals);
 
   string get_variable(const string &varname);
   string expand_variable(const string &varname);
   MapVariableDefinition &find_map_variable(const string &varname);
+  DictVariableDefinition &find_dict_variable(const string &varname);
 
   PPDirectory *get_directory();
   void set_directory(PPDirectory *directory);
@@ -66,6 +72,7 @@ public:
   static string format_int(int num);
 
   static MapVariableDefinition _null_map_def;
+  static DictVariableDefinition _null_dict_def;
 
 private:
   class ExpandedVariable {
@@ -150,6 +157,7 @@ private:
   string expand_map_variable(const string &varname, const string &params);
   string expand_map_variable(const string &varname, const string &expression,
                  const vector<string> &keys);
+  string expand_dict_variable(const std::string &varname, const string &params);
 
   void
   r_expand_matrix(vector<string> &results,
@@ -158,6 +166,8 @@ private:
 
   MapVariableDefinition &
   p_find_map_variable(const string &varname);
+  DictVariableDefinition &
+  p_find_dict_variable(const string &varname);
 
   void glob_string(const string &str, vector<string> &results);
 
@@ -170,6 +180,9 @@ private:
 
   typedef map<string, MapVariableDefinition> MapVariables;
   MapVariables _map_variables;
+
+  typedef map<string, DictVariableDefinition> DictVariables;
+  DictVariables _dict_variables;
 
   PPScope *_parent_scope;
   typedef vector<PPScope *> ScopeStack;

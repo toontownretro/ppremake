@@ -523,6 +523,12 @@ end_read() {
       errors_occurred = true;
       break;
 
+    case BS_fordict:
+    case BS_nested_fordict:
+      cerr << "Unclosed fordict " << _block_nesting->_name << "\n";
+      errors_occurred = true;
+      break;
+
     case BS_defsub:
       cerr << "Unclosed defsub " << _block_nesting->_name << "\n";
       errors_occurred = true;
@@ -632,6 +638,9 @@ handle_command(const string &line) {
   } else if (_command == "formap") {
     return handle_formap_command();
 
+  } else if (_command == "fordict") {
+    return handle_fordict_command();
+
   } else if (_command == "defsub") {
     return handle_defsub_command(true);
 
@@ -691,6 +700,12 @@ handle_command(const string &line) {
 
   } else if (_command == "addmap") {
     return handle_addmap_command();
+
+  } else if (_command == "dict") {
+    return handle_dict_command();
+
+  } else if (_command == "adddict") {
+    return handle_adddict_command();
 
   } else if (_command == "push") {
     return handle_push_command();
@@ -1048,6 +1063,44 @@ handle_formap_command() {
 }
 
 ////////////////////////////////////////////////////////////////////
+//     Function: PPCommandFile::handle_fordict_command
+//       Access: Protected
+//  Description: Handles the #fordict command: interpret all the lines
+//               between this command and the corresponding #end
+//               command once for each key in the dictionary.
+////////////////////////////////////////////////////////////////////
+bool PPCommandFile::
+handle_fordict_command() {
+  // Get the parameters of the fordict command.  The first word is the
+  // name of the variable to substitute in (and which should appear on
+  // the matching #end command), and the second word is the name of
+  // the dict variable.
+  vector<string> words;
+  tokenize_whitespace(_scope->expand_string(_params), words);
+
+  if (words.size() != 2) {
+    cerr << "#fordict requires exactly two parameters.\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  string variable_name = words.front();
+
+  BlockState state = _in_for ? BS_nested_fordict : BS_fordict;
+  BlockNesting *nest = new BlockNesting(state, words[0]);
+  nest->push(this);
+
+  nest->_words.push_back(words[1]);
+
+  if (!_in_for) {
+    _in_for = true;
+    _saved_lines.clear();
+  }
+
+  return true;
+}
+
+////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::handle_defsub_command
 //       Access: Protected
 //  Description: Handles the #defsub (or #defun) command: save all the
@@ -1236,6 +1289,13 @@ handle_end_command() {
     // Now replay all of the saved lines.
     _in_for = false;
     if (!replay_foreach(nest->_name, nest->_words)) {
+      return false;
+    }
+
+  } else if (nest->_state == BS_fordict) {
+    // Now replay all of the saved lines.
+    _in_for = false;
+    if (!replay_fordict(nest->_name, nest->_words[0])) {
       return false;
     }
 
@@ -1727,6 +1787,51 @@ handle_addmap_command() {
 }
 
 ////////////////////////////////////////////////////////////////////
+//     Function: PPCommandFile::handle_dict_command
+//       Access: Protected
+//  Description: Handles the #dict command: define a new dict variable.
+//               This is simply a string key/value mapping.
+////////////////////////////////////////////////////////////////////
+bool PPCommandFile::
+handle_dict_command() {
+  // Pull off the first word and the rest of the params.
+  size_t p = _scope->scan_to_whitespace(_params);
+  string varname = trim_blanks(_scope->expand_string(_params.substr(0, p)));
+  _scope->define_dict_variable(varname);
+
+  return true;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPCommandFile::handle_adddict_command
+//       Access: Protected
+//  Description: Handles the #adddict command: add/replace a key/value
+//               string pair on the dictionary.
+//
+//               Usage:
+//               #adddict varname key,value
+////////////////////////////////////////////////////////////////////
+bool PPCommandFile::
+handle_adddict_command() {
+  // Pull off the first word and the rest of the params.
+  size_t p = _scope->scan_to_whitespace(_params);
+  string varname = trim_blanks(_scope->expand_string(_params.substr(0, p)));
+
+  // The rest is the comma-delimited key and value.
+  vector<string> words;
+  _scope->tokenize_params(_params.substr(p), words, true);
+  if (words.size() != 2) {
+    cerr << "Missing comma-delimited key,value parameters in #adddict " << varname << "\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  _scope->add_to_dict_variable(varname, words[0], words[1]);
+
+  return true;
+}
+
+////////////////////////////////////////////////////////////////////
 //     Function: PPCommandFile::handle_push_command
 //       Access: Protected
 //  Description: Handles the #push command: push a variable definition
@@ -2200,6 +2305,57 @@ replay_formap(const string &varname, const string &mapvar) {
     }
 
     _scope = PPScope::pop_scope();
+  }
+
+  if (saved_block != _block_nesting || saved_if != _if_nesting) {
+    cerr << "Misplaced #end or #endif.\n";
+    errors_occurred = true;
+    okflag = false;
+  }
+
+  return okflag;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPCommandFile::replay_fordict
+//       Access: Protected
+//  Description: Replays all the lines that were saved during a
+//               previous #fordict..#end block.
+////////////////////////////////////////////////////////////////////
+bool PPCommandFile::
+replay_fordict(const string &varname, const string &dictvar) {
+  assert(!_in_for);
+
+  bool okflag = true;
+
+  vector<string> lines;
+  lines.swap(_saved_lines);
+
+  // Remove the #end command.  This will fail if someone makes an #end
+  // command that spans multiple lines.  Don't do that.
+  assert(!lines.empty());
+  lines.pop_back();
+
+  // Now look up the map variable.
+  PPScope::DictVariableDefinition &def = _scope->find_dict_variable(dictvar);
+  if (&def == &PPScope::_null_dict_def) {
+    cerr << "Undefined dict variable: #fordict " << varname << " "
+         << dictvar << "\n";
+    errors_occurred = true;
+    return false;
+  }
+
+  BlockNesting *saved_block = _block_nesting;
+  IfNesting *saved_if = _if_nesting;
+
+  // Evaluate the block for each key in the dictionary.
+  PPScope::DictVariableDefinition::const_iterator di;
+  for (di = def.begin(); di != def.end() && okflag; ++di) {
+    _scope->define_variable(varname, (*di).first);
+    vector<string>::const_iterator li;
+    for (li = lines.begin(); li != lines.end() && okflag; ++li) {
+      okflag = read_line(*li);
+    }
   }
 
   if (saved_block != _block_nesting || saved_if != _if_nesting) {
