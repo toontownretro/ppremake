@@ -1984,18 +1984,9 @@ handle_concatcxx_command() {
   ss << " 0,";
   ss << "\n};\n";
 
-  ofstream output_stream;
-  output_filename.set_text();
-  if (!output_filename.open_write(output_stream, true)) {
-    cerr << "concatcxx: could not open output file " << output_filename.get_fullpath() << ".\n";
-    errors_occurred = true;
-    output_stream.close();
+  if (!compare_output(ss.str(), output_filename, true, false)) {
     return false;
   }
-
-  output_stream << ss.str();
-  output_stream.flush();
-  output_stream.close();
 
   return true;
 }
