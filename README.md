@@ -6,4 +6,4 @@ ppremake can be built on Windows and Unix platforms.  A Visual Studio solution i
 
 See [this file](doc/BUILD_FROM_SOURCE.txt) for instructions on how to build ppremake.
 
-See [this page](doc/ppremake.html) for documentation on ppremake, including its scripting language and how it processes source trees.
+See [this page](../../wiki/Documentation) for documentation on ppremake, including its scripting language and how it processes source trees.
