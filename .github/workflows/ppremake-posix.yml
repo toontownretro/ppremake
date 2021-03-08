@@ -1,4 +1,4 @@
-name: ppremake CI
+name: ppremake POSIX CI
 
 on:
   push:
@@ -11,17 +11,19 @@ jobs:
   
     strategy:
       matrix:
-        os: ['ubuntu-latest', 'windows-latest']
+        os: ['ubuntu-latest', 'macos-latest']
     runs-on: ${{ matrix.os }}
 
     steps:
     - uses: actions/checkout@v2
     
     - name: deps (linux)
-      run: |
-        sudo apt-get install autotools-dev
-        sudo apt-get install autoconf
+      run: sudo apt-get install autotools-dev autoconf
       if: matrix.os == 'ubuntu-latest'
+    
+    - name: deps (macos)
+      run: brew install autoconf automake libtool
+      if: matrix.os == 'macos-latest'
       
     - name: configure
       run: |
@@ -31,16 +33,9 @@ jobs:
         automake --foreign -a
         autoconf
         ./configure
-      if: matrix.os == 'ubuntu-latest'
       
     - name: make
       run: cd ./src && make
-      if: matrix.os == 'ubuntu-latest'
       
     - name: make check
       run: cd ./src && make check
-      if: matrix.os == 'ubuntu-latest'
-    
-    - name: build (msbuild)
-      run: cd ./src && msbuild ppremake.sln -p:Configuration=Release;Platform=x64
-      if: matrix.os == 'windows-latest'
