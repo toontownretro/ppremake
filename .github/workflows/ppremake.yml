@@ -20,12 +20,8 @@ jobs:
     - uses: microsoft/setup-msbuild@v1
       if: matrix.os == 'windows-latest'
 
-    - name: nuget
-      run: nuget restore src\ppremake.sln
-      if: matrix.os == 'windows-latest'
-
-    - name: build
-      run: msbuild /m /p:Configuration=Release;Platform=x64 src\ppremake.sln
+    - name: msbuild
+      run: msbuild src\ppremake.sln -p:Configuration=Release
       if: matrix.os == 'windows-latest'
     
     - name: deps (linux)
