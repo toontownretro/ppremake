@@ -22,4 +22,4 @@ ppremake_SOURCES =							\
 
 # Extra files for VC++ project description
 EXTRA_DIST =							\
-    ppremake.sln ppremake.vcproj ppremake.vsdir ppremake.vsz
+    ppremake.vcxproj

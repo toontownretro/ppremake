@@ -31,7 +31,7 @@ no intention of getting it.
       Also, if you are on Cygwin, you will need to ensure that gcc is
       installed.
 
-  (3) Run the following commands within the src directory, in
+  (3) Run the following commands within the ppremake directory, in
       order:
 
       aclocal
@@ -41,7 +41,7 @@ no intention of getting it.
  
 (4) Now you have a tree that has been processed with autoconf, and you
     are ready to run the resulting configure script.  Type the
-    following command within the src directory:
+    following command within the ppremake directory:
 
     ./configure
 

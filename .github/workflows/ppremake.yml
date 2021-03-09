@@ -21,7 +21,7 @@ jobs:
       if: matrix.os == 'windows-latest'
 
     - name: msbuild
-      run: msbuild src\ppremake.sln -p:Configuration=Release
+      run: msbuild ppremake.sln -p:Configuration=Release
       if: matrix.os == 'windows-latest'
     
     - name: deps (linux)
@@ -34,7 +34,6 @@ jobs:
       
     - name: configure
       run: |
-        cd src
         aclocal
         autoheader
         automake --foreign -a
@@ -43,9 +42,9 @@ jobs:
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
       
     - name: make
-      run: cd ./src && make
+      run: make
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
       
     - name: make check
-      run: cd ./src && make check
+      run: make check
       if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
