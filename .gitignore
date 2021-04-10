@@ -30,3 +30,6 @@ src/.vs
 Makefile.in
 src/x64
 src/x86
+x64
+x86
+.vs
