@@ -1,6 +1,6 @@
 // Filename: ppDirectory.cxx
 // Created by:  drose (28Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppDirectory.h"
@@ -91,7 +91,7 @@ PPDirectory(const string &dirname, PPDirectory *parent) :
   _depends_index = 0;
   _computing_depends_index = false;
 
-  bool inserted = 
+  bool inserted =
     _tree->_dirnames.insert(PPDirectoryTree::Dirnames::value_type(_dirname, this)).second;
   if (!inserted) {
     cerr << "Warning: multiple directories encountered named "
@@ -361,7 +361,7 @@ get_dependable_file(const string &filename, bool is_header) {
     PPDirectoryTree *main_tree = _tree->get_main_tree();
     bool unique = main_tree->_dependables.insert
       (PPDirectoryTree::Dependables::value_type(filename, dependable)).second;
-    
+
     if (!unique) {
       PPDependableFile *other = main_tree->find_dependable_file(filename);
       if (_tree != main_tree &&
@@ -406,7 +406,7 @@ report_depends() const {
     // Get the complete set of directories we depend on.
     Depends dep;
     get_complete_i_depend_on(dep);
-    
+
     cerr << _dirname << " depends directly on the following directories:";
     show_directories(_i_depend_on);
 
@@ -508,7 +508,7 @@ scan_extra_depends(const string &cache_filename) {
   for (fi = filenames.begin(); fi != filenames.end(); ++fi) {
     string filename = (*fi);
 
-    if (!filename.empty() && filename[0] != '.' && 
+    if (!filename.empty() && filename[0] != '.' &&
 	filename != string("CVS") &&
         filename != cache_filename) {
       get_dependable_file(filename, true);
@@ -537,7 +537,7 @@ read_source_file(const string &prefix, PPNamedScopes *named_scopes) {
 
     named_scopes->set_current(_dirname);
     _scope = named_scopes->make_scope("");
-    
+
     _scope->define_variable("SOURCEFILE", SOURCE_FILENAME);
     _scope->define_variable("DIRNAME", _dirname);
     _scope->define_variable("DIRPREFIX", prefix);
@@ -545,14 +545,14 @@ read_source_file(const string &prefix, PPNamedScopes *named_scopes) {
     _scope->define_variable("SUBDIRS", get_child_dirnames());
     _scope->define_variable("SUBTREE", get_complete_subtree());
     _scope->set_directory(this);
-    
+
     _source = new PPCommandFile(_scope);
-    
+
     if (!_source->read_stream(in, source_filename)) {
       return false;
     }
   }
-    
+
   Children::iterator ci;
   for (ci = _children.begin(); ci != _children.end(); ++ci) {
     if (!(*ci)->read_source_file(prefix + (*ci)->get_dirname() + "/",
@@ -581,7 +581,7 @@ read_depends_file(PPNamedScopes *named_scopes) {
       cerr << "No definition given for $[DEPENDS_FILE], cannot process.\n";
       return false;
     }
-    
+
     named_scopes->set_current(_dirname);
     current_output_directory = this;
     PPCommandFile depends(_scope);
@@ -590,7 +590,7 @@ read_depends_file(PPNamedScopes *named_scopes) {
            << depends_filename << ".\n";
       return false;
     }
-    
+
     // This should have defined the variable DEPEND_DIRS, which lists
     // the various dirnames this source file depends on.
 
@@ -621,7 +621,7 @@ read_depends_file(PPNamedScopes *named_scopes) {
       get_dependable_file(*ni, true);
     }
   }
-    
+
   Children::iterator ci;
   for (ci = _children.begin(); ci != _children.end(); ++ci) {
     if (!(*ci)->read_depends_file(named_scopes)) {
@@ -695,7 +695,7 @@ compute_depends_index() {
            << _dirname << " depends on " << (*di)->_dirname << "\n";
       return false;
     }
-      
+
     if (!(*di)->compute_depends_index()) {
       // Keep reporting the cycle as we unroll the recursion.
       cerr << _dirname << " depends on " << (*di)->_dirname << "\n";
@@ -763,17 +763,16 @@ read_file_dependencies(const string &cache_filename) {
     // It exists and is new enough; use it.
     if (!cache_pathname.open_read(in)) {
       cerr << "Couldn't read \"" << cache_pathname << "\"\n";
-  
+
     } else {
       if (verbose) {
         cerr << "Loading cache \"" << cache_pathname << "\"\n";
       }
 
       bool okcache = true;
-      
+
       string line;
-      getline(in, line);
-      while (!in.fail() && !in.eof()) {
+      while (getline(in, line)) {
         vector<string> words;
         tokenize_whitespace(line, words);
         if (words.size() >= 2) {
@@ -793,7 +792,6 @@ read_file_dependencies(const string &cache_filename) {
             break;
           }
         }
-        getline(in, line);
       }
 
       if (!okcache) {
@@ -807,7 +805,7 @@ read_file_dependencies(const string &cache_filename) {
       }
     }
   }
-    
+
   Children::iterator ci;
   for (ci = _children.begin(); ci != _children.end(); ++ci) {
     (*ci)->read_file_dependencies(cache_filename);
@@ -854,7 +852,7 @@ update_file_dependencies(const string &cache_filename) {
       if (verbose) {
         cerr << "Rewriting cache " << cache_pathname << "\n";
       }
-      
+
       // Walk through our list of dependable files, writing them out the
       // the cache file.
       bool external_tree = (_tree->get_main_tree() != _tree);
@@ -870,17 +868,17 @@ update_file_dependencies(const string &cache_filename) {
           wrote_anything = true;
         }
       }
-      
+
       out.close();
     }
-      
+
     if (!wrote_anything) {
       // Well, if we didn't write anything, remove the cache file
       // after all.
       cache_pathname.unlink();
     }
   }
-    
+
   Children::iterator ci;
   for (ci = _children.begin(); ci != _children.end(); ++ci) {
     (*ci)->update_file_dependencies(cache_filename);
@@ -942,9 +940,9 @@ show_directories(const PPDirectory::Depends &dep) const {
   vector<PPDirectory *> dirs;
   copy(dep.begin(), dep.end(),
        back_insert_iterator<vector<PPDirectory *> >(dirs));
-  
+
   sort(dirs.begin(), dirs.end(), SortDirectoriesByDependencyAndName());
-  
+
   static const int max_col = 72;
   int col = max_col;
   vector<PPDirectory *>::const_iterator di;

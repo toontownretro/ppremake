@@ -371,13 +371,11 @@ read_stream(istream &in, const string &filename) {
 bool PPCommandFile::
 read_stream(istream &in) {
   string line;
-  getline(in, line);
   begin_read();
-  while (!in.fail() && !in.eof()) {
+  while (getline(in, line)) {
     if (!read_line(line)) {
       return false;
     }
-    getline(in, line);
   }
 
   if (!end_read()) {
@@ -1506,12 +1504,10 @@ handle_copy_command() {
   }
 
   string line;
-  getline(in, line);
-  while (!in.fail() && !in.eof()) {
+  while (getline(in, line)) {
     if (!_write_state->write_line(line)) {
       return false;
     }
-    getline(in, line);
   }
 
   if (!in.eof()) {
@@ -2015,12 +2011,10 @@ include_file(Filename filename) {
   PushFilename pushed(_scope, filename);
 
   string line;
-  getline(in, line);
-  while (!in.fail() && !in.eof()) {
+  while (getline(in, line)) {
     if (!read_line(line)) {
       return false;
     }
-    getline(in, line);
   }
 
   if (!in.eof()) {

@@ -207,13 +207,11 @@ check_one_file(const string &dir_prefix, const vector<string> &words) {
   }
 
   string line;
-  getline(in, line);
-  while (!in.fail() && !in.eof()) {
+  while (getline(in, line)) {
     string filename = check_include(line);
     if (!filename.empty() && filename.find('/') == string::npos) {
       found_files.insert(filename);
     }
-    getline(in, line);
   }
 
   // Now check that the two sets are equivalent.
@@ -247,8 +245,7 @@ check_dependencies(const string &dep_filename) {
   }
 
   string line;
-  getline(in, line);
-  while (!in.fail() && !in.eof()) {
+  while (getline(in, line)) {
     vector<string> words;
     tokenize_whitespace(line, words);
     if (words.size() < 2) {
@@ -259,7 +256,6 @@ check_dependencies(const string &dep_filename) {
       // This file is stale; return false.
       return false;
     }
-    getline(in, line);
   }
 
   // All files are ok; return true.

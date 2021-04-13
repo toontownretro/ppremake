@@ -1,6 +1,6 @@
 // Filename: ppDependableFile.cxx
 // Created by:  drose (15Oct00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppDependableFile.h"
@@ -105,7 +105,7 @@ update_from_cache(const vector<string> &words) {
           _extra_includes.push_back(dirpath.substr(2));
 
         } else {
-          dep._file = 
+          dep._file =
             tree->get_dependable_file_by_dirpath(dirpath, false);
           if (dep._file != (PPDependableFile *)NULL) {
             _dependencies.push_back(dep);
@@ -364,7 +364,7 @@ void PPDependableFile::
 update_dependencies() {
   if ((_flags & F_updated) != 0) {
     return;
-  }  
+  }
 
   assert((_flags & F_updating) == 0);
   string circularity;
@@ -417,11 +417,10 @@ compute_dependencies(string &circularity) {
         cerr << "Reading (dep) \"" << filename << "\"\n";
       }
       PPDirectoryTree *tree = _directory->get_tree()->get_main_tree();
-      
+
       bool okcircular = false;
       string line;
-      getline(in, line);
-      while (!in.fail() && !in.eof()) {
+      while (getline(in, line)) {
         if (line.substr(0, 16) == "/* okcircular */") {
           okcircular = true;
         } else {
@@ -434,7 +433,7 @@ compute_dependencies(string &circularity) {
               // All right!  Here's a file we depend on.  Add it to the
               // list.
               _dependencies.push_back(dep);
-          
+
             } else {
               // It's an include file from somewhere else, not from within
               // our source tree.  We don't care about it, but we do need
@@ -445,7 +444,6 @@ compute_dependencies(string &circularity) {
           }
           okcircular = false;
         }
-        getline(in, line);
       }
     }
   }
@@ -455,7 +453,7 @@ compute_dependencies(string &circularity) {
   PPDependableFile *circ = (PPDependableFile *)NULL;
 
   Dependencies::iterator di;
-  for (di = _dependencies.begin(); 
+  for (di = _dependencies.begin();
        di != _dependencies.end() && circ == (PPDependableFile *)NULL;
        ++di) {
     // Skip this file if the user specifically marked it
@@ -471,7 +469,7 @@ compute_dependencies(string &circularity) {
       if (circ != (PPDependableFile *)NULL) {
         // Oops, a circularity.  Silly user.
         circularity = get_dirpath() + " => " + circularity;
-    
+
         if (circ == this) {
           _flags |= F_circularity;
           _circularity = circularity;
