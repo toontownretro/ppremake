@@ -1730,7 +1730,12 @@ expand_shell(const string &params) {
   }
 
   string command = "cd ";
-  command += Filename(dirname).to_os_specific() + ";";
+  command += Filename(dirname).to_os_specific();
+#ifdef WIN32_VC
+  command += " && ";
+#else
+  command += " ; ";
+#endif
   command += expand_string(params);
 
   array<char, 128> buffer;
