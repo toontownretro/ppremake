@@ -39,6 +39,10 @@
 #include <signal.h>
 #include <assert.h>
 
+#include <array>
+#include <memory>
+#include <string>
+
 #ifdef WIN32_VC
 #include <windows.h>  // for GetFileAttributes()
 #endif  // WIN32_VC
@@ -1715,90 +1719,39 @@ expand_bintest(const string &params) {
 ////////////////////////////////////////////////////////////////////
 string PPScope::
 expand_shell(const string &params) {
-#ifdef WIN32_VC
-  cerr << "$[shell] is not presently supported on Win32 without Cygwin.\n";
-  errors_occurred = true;
-  string output;
-
-#else  // WIN32_VC
   // We run $[shell] commands within the directory indicated by
-  // $[THISDIRPREFIX].  This way, local filenames will be expanded the
+  // $[DIRPREFIX].  This way, local filenames will be expanded the
   // way we expect.
-  string dirname = trim_blanks(expand_variable("THISDIRPREFIX"));
-
-  string command = expand_string(params);
-  int pid, status;
-
-  int pd[2];
-  if (pipe(pd) < 0) {
-    // pipe() failed.
-    perror("pipe");
-    return string();
+  string dirname = trim_blanks(expand_variable("DIRPREFIX"));
+  if (dirname.empty()) {
+    // If $[DIRPREFIX] is empty, we are not currently in a Sources.pp
+    // scope, so use $[THISDIRPREFIX] instead.
+    dirname = trim_blanks(expand_variable("THISDIRPREFIX"));
   }
 
-  pid = fork();
-  if (pid < 0) {
-    // fork() failed.
-    perror("fork");
-    return string();
-  }
+  string command = "cd ";
+  command += Filename(dirname).to_os_specific() + ";";
+  command += expand_string(params);
 
-  if (pid == 0) {
-    // Child.
-
-    if (!dirname.empty()) {
-      // We don't have to restore the directory after we're done,
-      // because we're doing the chdir() call only within the child
-      // process.
-      if (chdir(dirname.c_str()) < 0) {
-        perror("chdir");
-      }
-    }
-
-    close(pd[0]);
-    dup2(pd[1], STDOUT_FILENO);
-    char *argv[4];
-    argv[0] = (char *)"sh";
-    argv[1] = (char *)"-c";
-    argv[2] = (char *)command.c_str();
-    argv[3] = (char *)NULL;
-    execv("/bin/sh", argv);
-    exit(127);
-  }
-
-  // Parent.  Wait for the child to terminate, and read from its
-  // output while we're waiting.
-  close(pd[1]);
-  bool child_done = false;
-  bool pipe_closed = false;
+  array<char, 128> buffer;
   string output;
+#ifdef WIN32_VC
+  shared_ptr<FILE> pipe(_popen(command.c_str(), "r"), _pclose);
+#else
+  shared_ptr<FILE> pipe(popen(command.c_str(), "r"), pclose);
+#endif
 
-  while (!child_done && !pipe_closed) {
-    static const int buffer_size = 1024;
-    char buffer[buffer_size];
-    int read_bytes = (int)read(pd[0], buffer, buffer_size);
-    if (read_bytes < 0) {
-      perror("read");
-    } else if (read_bytes == 0) {
-      pipe_closed = true;
-    } else {
-      output += string(buffer, read_bytes);
-    }
+  if (!pipe) {
+    cerr << "$[shell " << params << "]: failed to open pipe\n";
+    errors_occurred = true;
+    return string();
+  }
 
-    if (!child_done) {
-      int waitresult = waitpid(pid, &status, WNOHANG);
-      if (waitresult < 0) {
-        if (errno != EINTR) {
-          perror("waitpid");
-          return string();
-        }
-      } else if (waitresult > 0) {
-        child_done = true;
-      }
+  while (!feof(pipe.get())) {
+    if (fgets(buffer.data(), 128, pipe.get()) != nullptr) {
+      output += buffer.data();
     }
   }
-  close(pd[0]);
-#endif  // WIN32_VC
 
   // Now get the output.  We split it into words and then reconnect
   // it, to simulate the shell's backpop operator.
@@ -1809,9 +1762,6 @@ expand_shell(const string &params) {
 
   return result;
 }
-
-
-
 
 ////////////////////////////////////////////////////////////////////
 //     Function: PPScope::expand_standardize
