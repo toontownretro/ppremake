@@ -4,7 +4,7 @@ dnl ****************  UPDATE VERSION NUMBER HERE  ****************
 dnl **         Also be sure to change the version number        **
 dnl **                at the end of config_msvc.h.              **
 dnl ****************                              ****************
-AC_INIT(ppremake, 1.23)
+AC_INIT(ppremake, 1.24)
 dnl ****************  UPDATE VERSION NUMBER HERE  ****************
 
 dnl Process this file with autoconf to produce a configure script.
