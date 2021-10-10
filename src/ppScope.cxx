@@ -1092,6 +1092,8 @@ r_expand_variable(const string &str, size_t &vp,
       return expand_isfullpath(params);
     } else if (funcname == "osfilename") {
       return expand_osfilename(params);
+    } else if (funcname == "osgeneric") {
+      return expand_osgeneric(params);
     } else if (funcname == "unixfilename") {
       return expand_unixfilename(params);
     } else if (funcname == "unixshortname") {
@@ -1401,6 +1403,34 @@ expand_osfilename(const string &params) {
   for (wi = words.begin(); wi != words.end(); ++wi) {
     Filename filename = (*wi);
     (*wi) = filename.to_os_specific();
+  }
+
+  string result = repaste(words, " ");
+  return result;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPScope::expand_osgeneric
+//       Access: Private
+//  Description: Expands the "osgeneric" function variable.  This
+//               converts the filename from a Unix-style filename
+//               (e.g. with slash separators) to a platform-specific
+//               filename.  The difference between this and "osfilename"
+//               is that the resulting filename uses front-slashes
+//               rather than back-slashes.  Windows can understand
+//               pathnames with front-slashes, and is required for
+//               Makefiles on Windows.
+////////////////////////////////////////////////////////////////////
+string PPScope::
+expand_osgeneric(const string &params) {
+  // Split the parameter into tokens based on the spaces.
+  vector<string> words;
+  tokenize_whitespace(expand_string(params), words);
+
+  vector<string>::iterator wi;
+  for (wi = words.begin(); wi != words.end(); ++wi) {
+    Filename filename = (*wi);
+    (*wi) = filename.to_os_generic();
   }
 
   string result = repaste(words, " ");
