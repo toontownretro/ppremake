@@ -1553,9 +1553,9 @@ handle_call_command() {
 
   PPScope *old_scope = _scope;
   PPScope::push_scope(_scope);
-  PPScope nested_scope(_scope->get_named_scopes());
-  _scope = &nested_scope;
-  nested_scope.define_formals(subroutine_name, sub->_formals, params);
+  PPScope *nested_scope = new PPScope(_scope->get_named_scopes());
+  _scope = nested_scope;
+  nested_scope->define_formals(subroutine_name, sub->_formals, params);
 
   vector<string>::const_iterator li;
   for (li = sub->_lines.begin(); li != sub->_lines.end(); ++li) {
