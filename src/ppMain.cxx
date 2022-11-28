@@ -213,6 +213,9 @@ process_all() {
   if (!cache_filename.empty()) {
     _tree.update_file_dependencies(cache_filename);
   }
+
+  _tree.write_model_dependencies();
+
   return true;
 }
 

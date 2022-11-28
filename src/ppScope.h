@@ -159,6 +159,7 @@ private:
   string expand_map_variable(const string &varname, const string &expression,
                  const vector<string> &keys);
   string expand_dict_variable(const std::string &varname, const string &params);
+  string expand_model_depends(const string &params);
 
   void
   r_expand_matrix(vector<string> &results,

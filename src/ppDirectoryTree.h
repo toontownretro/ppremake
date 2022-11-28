@@ -1,6 +1,6 @@
 // Filename: ppDirectoryTree.h
 // Created by:  drose (15Oct00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #ifndef PPDIRECTORYTREE_H
@@ -49,6 +49,8 @@ public:
 
   void read_file_dependencies(const string &cache_filename);
   void update_file_dependencies(const string &cache_filename);
+
+  void write_model_dependencies();
 
 private:
   PPDirectoryTree *_main_tree;

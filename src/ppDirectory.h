@@ -1,12 +1,14 @@
 // Filename: ppDirectory.h
 // Created by:  drose (28Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #ifndef PPDIRECTORY_H
 #define PPDIRECTORY_H
 
 #include "ppremake.h"
+#include "filename.h"
+#include "vector_string.h"
 
 #include <vector>
 #include <map>
@@ -17,6 +19,13 @@ class PPScope;
 class PPNamedScopes;
 class PPDirectoryTree;
 class PPDependableFile;
+
+class PPDependableModelFile {
+public:
+  Filename _filename;
+  time_t _timestamp;
+  vector_string _dependencies;
+};
 
 ///////////////////////////////////////////////////////////////////
 //       Class : PPDirectory
@@ -49,11 +58,17 @@ public:
   string get_child_dirnames() const;
   string get_complete_subtree() const;
 
-  PPDependableFile *get_dependable_file(const string &filename, 
+  PPDependableFile *get_dependable_file(const string &filename,
                                         bool is_header);
 
   void report_depends() const;
   void report_reverse_depends() const;
+
+  const vector_string &get_depended_models(const string &filename);
+  void read_model_dependency_cache();
+  void write_model_dependency_cache();
+
+  void r_write_model_dependency_cache();
 
 private:
   typedef set<PPDirectory *> Depends;
@@ -87,6 +102,11 @@ private:
 
   typedef map<string, PPDependableFile *> Dependables;
   Dependables _dependables;
+
+  typedef map<string, PPDependableModelFile> DependableModels;
+  DependableModels _dependable_models;
+  bool _model_dependencies_updated;
+  bool _read_model_dependency_cache;
 
   friend class PPDirectoryTree;
 };

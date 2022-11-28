@@ -1216,6 +1216,8 @@ r_expand_variable(const string &str, size_t &vp,
       return expand_foreach(params);
     } else if (funcname == "forscopes") {
       return expand_forscopes(params);
+    } else if (funcname == "model-depends") {
+      return expand_model_depends(params);
     }
 
     // Maybe it's a dictionary variable.
@@ -1759,34 +1761,151 @@ expand_shell(const string &params) {
     dirname = trim_blanks(expand_variable("THISDIRPREFIX"));
   }
 
-  string command = "cd ";
-  command += Filename(dirname).to_os_specific();
-#ifdef WIN32_VC
-  command += " && ";
-#else
-  command += " ; ";
-#endif
-  command += expand_string(params);
+  std::string os_dirname = Filename(dirname).to_os_specific();
 
-  array<char, 128> buffer;
+  string command = expand_string(params);
   string output;
-#ifdef WIN32_VC
-  shared_ptr<FILE> pipe(_popen(command.c_str(), "r"), _pclose);
-#else
-  shared_ptr<FILE> pipe(popen(command.c_str(), "r"), pclose);
-#endif
 
-  if (!pipe) {
-    cerr << "$[shell " << params << "]: failed to open pipe\n";
+#ifdef WIN32_VC
+  static array<char, 4096> buffer;
+  SECURITY_ATTRIBUTES sa;
+  sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+  sa.bInheritHandle = TRUE;
+  sa.lpSecurityDescriptor = NULL;
+  HANDLE stderr_pipe_rd = NULL;
+  HANDLE stderr_pipe_wr = NULL;
+  if (!CreatePipe(&stderr_pipe_rd, &stderr_pipe_wr, &sa, 0)) {
+    cerr << "$[shell]: couldn't create win pipe " << GetLastError() << "\n";
+    errors_occurred = true;
+    return string();
+  }
+  if (!SetHandleInformation(stderr_pipe_rd, HANDLE_FLAG_INHERIT, 0)) {
+    cerr << "$[shell]: couldn't set handle information " << GetLastError() << "\n";
     errors_occurred = true;
     return string();
   }
 
-  while (!feof(pipe.get())) {
-    if (fgets(buffer.data(), 128, pipe.get()) != nullptr) {
-      output += buffer.data();
+  PROCESS_INFORMATION proc_info;
+  STARTUPINFOA start_info;
+  bool success = FALSE;
+
+  ZeroMemory(&proc_info, sizeof(PROCESS_INFORMATION));
+  ZeroMemory(&start_info, sizeof(STARTUPINFOA));
+  start_info.cb = sizeof(STARTUPINFOA);
+  start_info.hStdOutput = stderr_pipe_wr;
+  start_info.dwFlags |= STARTF_USESTDHANDLES;
+
+  success = CreateProcessA(
+    NULL,
+    (char *)command.c_str(),
+    NULL,
+    NULL,
+    TRUE,
+    CREATE_NO_WINDOW,
+    NULL,
+    (char *)os_dirname.c_str(),
+    &start_info,
+    &proc_info
+  );
+
+  if (!success) {
+    cerr << "$[shell]: couldn't create process " << GetLastError() << "\n";
+    errors_occurred = true;
+    return string();
+  }
+
+  CloseHandle(stderr_pipe_wr);
+
+  DWORD dw_read = 0;
+  bool success2 = FALSE;
+  for (;;) {
+    success2 = ReadFile(stderr_pipe_rd, buffer.data(), buffer.size(), &dw_read, NULL);
+    if (!success2 || dw_read == 0) {
+      break;
+    }
+    std::string s(buffer.data(), dw_read);
+    output += s;
+  }
+
+  CloseHandle(stderr_pipe_rd);
+
+#else // WIN32_VC
+
+  // Posix implementation.
+
+  int pid, status;
+
+  int pd[2];
+  if (pipe(pd) < 0) {
+    // pipe() failed.
+    perror("pipe");
+    return string();
+  }
+
+  pid = fork();
+  if (pid < 0) {
+    // fork() failed.
+    perror("fork");
+    return string();
+  }
+
+  if (pid == 0) {
+    // Child.
+
+    if (!dirname.empty()) {
+      // We don't have to restore the directory after we're done,
+      // because we're doing the chdir() call only within the child
+      // process.
+      if (chdir(dirname.c_str()) < 0) {
+        perror("chdir");
+      }
+    }
+
+    close(pd[0]);
+    dup2(pd[1], STDOUT_FILENO);
+    char *argv[4];
+    argv[0] = (char *)"sh";
+    argv[1] = (char *)"-c";
+    argv[2] = (char *)command.c_str();
+    argv[3] = (char *)NULL;
+    execv("/bin/sh", argv);
+    exit(127);
+  }
+
+  // Parent.  Wait for the child to terminate, and read from its
+  // output while we're waiting.
+  close(pd[1]);
+  bool child_done = false;
+  bool pipe_closed = false;
+  string output;
+
+  while (!child_done && !pipe_closed) {
+    static const int buffer_size = 1024;
+    char buffer[buffer_size];
+    int read_bytes = (int)read(pd[0], buffer, buffer_size);
+    if (read_bytes < 0) {
+      perror("read");
+    } else if (read_bytes == 0) {
+      pipe_closed = true;
+    } else {
+      output += string(buffer, read_bytes);
+    }
+
+    if (!child_done) {
+      int waitresult = waitpid(pid, &status, WNOHANG);
+      if (waitresult < 0) {
+        if (errno != EINTR) {
+          perror("waitpid");
+          return string();
+        }
+      } else if (waitresult > 0) {
+        child_done = true;
+      }
     }
   }
+  close(pd[0]);
+
+#endif // WIN32_VC
 
   // Now get the output.  We split it into words and then reconnect
   // it, to simulate the shell's backpop operator.
@@ -3584,4 +3703,21 @@ glob_string(const string &str, vector<string> &results) {
 
   // Sort the results into alphabetical order.
   sort(results.begin(), results.end());
+}
+
+string PPScope::
+expand_model_depends(const string &params) {
+  vector_string tokens;
+  tokenize_params(params, tokens, true);
+
+  PPDirectory *directory = get_directory();
+
+  vector_string all_depends;
+  for (const string &filename : tokens) {
+    const vector_string &depends = directory->get_depended_models(filename);
+    all_depends.insert(all_depends.end(), depends.begin(), depends.end());
+  }
+  sort(all_depends.begin(), all_depends.end());
+
+  return repaste(all_depends, " ");
 }

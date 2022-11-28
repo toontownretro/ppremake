@@ -66,6 +66,8 @@ PPDirectory(PPDirectoryTree *tree) {
   _depth = 0;
   _depends_index = 0;
   _computing_depends_index = false;
+  _model_dependencies_updated = false;
+  _read_model_dependency_cache = false;
 
   _dirname = "top";
   _tree->_dirnames.insert(PPDirectoryTree::Dirnames::value_type(_dirname, this));
@@ -90,6 +92,8 @@ PPDirectory(const string &dirname, PPDirectory *parent) :
   _depth = _parent->_depth + 1;
   _depends_index = 0;
   _computing_depends_index = false;
+  _model_dependencies_updated = false;
+  _read_model_dependency_cache = false;
 
   bool inserted =
     _tree->_dirnames.insert(PPDirectoryTree::Dirnames::value_type(_dirname, this)).second;
@@ -957,4 +961,168 @@ show_directories(const PPDirectory::Depends &dep) const {
     }
   }
   cerr << "\n";
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPDirectory::get_depended_models
+//       Access: Public
+//  Description:
+////////////////////////////////////////////////////////////////////
+const vector_string &PPDirectory::
+get_depended_models(const string &str_filename) {
+  read_model_dependency_cache();
+
+  Filename filename(str_filename);
+  Filename fullpath(get_fullpath(), str_filename);
+
+  DependableModels::const_iterator it = _dependable_models.find(filename);
+  if (it != _dependable_models.end()) {
+    const PPDependableModelFile &dmfile = (*it).second;
+    if (dmfile._timestamp >= fullpath.get_timestamp()) {
+      // Our dependency cache is still valid, return that.
+      return dmfile._dependencies;
+    }
+  }
+
+  cerr << "Refreshing model dependencies for " << filename << "\n";
+
+  // If we got here, we either don't have a cache entry for this file,
+  // or the file was modified since the last time we determined
+  // dependencies for this file.
+
+  // TODO: Make the program run to report the dependencies configurable.
+  // Maybe make the user define a function that takes in the source filename, allowing
+  // the user to return whatever they want.
+  string depends = _scope->expand_string("$[shell asset-list-depends " + filename.get_fullpath() + "]");
+  if (verbose) {
+    cerr << filename.get_fullpath() << " dependencies: " << depends << "\n";
+  }
+
+  PPDependableModelFile dmfile;
+  dmfile._filename = filename;
+  dmfile._timestamp = fullpath.get_timestamp();
+  tokenize_whitespace(depends, dmfile._dependencies);
+  _dependable_models[filename] = move(dmfile);
+
+  _model_dependencies_updated = true;
+
+  return _dependable_models[filename]._dependencies;
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPDirectory::read_model_dependency_cache
+//       Access: Public
+//  Description:
+////////////////////////////////////////////////////////////////////
+void PPDirectory::
+write_model_dependency_cache() {
+  if (!_model_dependencies_updated) {
+    return;
+  }
+
+  Filename cache_filename(get_fullpath(), _scope->expand_variable("MODEL_DEPENDENCY_CACHE_FILENAME"));
+  if (cache_filename.empty()) {
+    return;
+  }
+  cache_filename.set_text();
+  cache_filename.unlink();
+
+  if (_dependable_models.empty()) {
+    return;
+  }
+
+  std::ofstream out;
+  if (cache_filename.open_write(out)) {
+    if (verbose) {
+      cerr << "Writing model dependency cache " << cache_filename << "\n";
+    }
+    for (DependableModels::const_iterator it = _dependable_models.begin(); it != _dependable_models.end(); ++it) {
+      const PPDependableModelFile &dmfile = (*it).second;
+      out << dmfile._filename << " " << dmfile._timestamp;
+      for (const string &dependency : dmfile._dependencies) {
+        out << " " << dependency;
+      }
+      out << "\n";
+    }
+
+    out.close();
+  }
+}
+
+void PPDirectory::
+r_write_model_dependency_cache() {
+  write_model_dependency_cache();
+  for (Children::iterator it = _children.begin(); it != _children.end(); ++it) {
+    (*it)->r_write_model_dependency_cache();
+  }
+}
+
+////////////////////////////////////////////////////////////////////
+//     Function: PPDirectory::read_model_dependency_cache
+//       Access: Public
+//  Description:
+////////////////////////////////////////////////////////////////////
+void PPDirectory::
+read_model_dependency_cache() {
+  if (_read_model_dependency_cache) {
+    return;
+  }
+
+  _read_model_dependency_cache = true;
+  Filename cache_filename(get_fullpath(), _scope->expand_variable("MODEL_DEPENDENCY_CACHE_FILENAME"));
+  if (cache_filename.empty()) {
+    cerr << "MODEL_DEPENDENCY_CACHE_FILENAME was not specified!\n";
+    errors_occurred = true;
+    return;
+  }
+  cache_filename.set_text();
+
+  if (!cache_filename.is_regular_file()) {
+    // Don't have a cache file here.
+    return;
+  }
+
+  std::ifstream buf;
+  if (cache_filename.open_read(buf)) {
+    if (verbose) {
+      cerr << "Reading model dependency cache " << cache_filename << "\n";
+    }
+    std::string line;
+    while (getline(buf, line)) {
+      // Every line is a file entry, with this format.
+      // <filename> <timestamp> <dependency> <dependency> <dependency> ...
+      vector_string words;
+      tokenize_whitespace(line, words);
+
+      Filename filename = words[0];
+
+      // This is the timestamp of the file at the last time we determined
+      // dependencies.
+      time_t timestamp;
+      char *n;
+      timestamp = strtoll(words[1].c_str(), &n, 0);
+      if (*n != '\0') {
+        // strtoll failed--not an integer.
+        cerr << "Error when reading model dependency cache: " << filename
+             << " has invalid timestamp " << words[1] << "\n";
+        errors_occurred = true;
+        return;
+      }
+
+      PPDependableModelFile dmfile;
+      dmfile._filename = filename;
+      dmfile._timestamp = timestamp;
+      // Now, the rest of the words are model files that it depends on.
+      for (size_t i = 2; i < words.size(); ++i) {
+        dmfile._dependencies.push_back(words[i]);
+      }
+      _dependable_models[filename] = move(dmfile);
+    }
+
+    buf.close();
+
+  } else {
+    cerr << "Failed to open model dependency cache file " << cache_filename
+         << " for reading.\n";
+  }
 }

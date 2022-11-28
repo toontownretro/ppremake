@@ -1,6 +1,6 @@
 // Filename: ppDirectoryTree.cxx
 // Created by:  drose (28Sep00)
-// 
+//
 ////////////////////////////////////////////////////////////////////
 
 #include "ppDirectoryTree.h"
@@ -144,7 +144,7 @@ scan_extra_depends(const string &dependable_header_dirs,
     if (!tree->get_root()->scan_extra_depends(cache_filename)) {
       okflag = false;
     }
-  }  
+  }
 
   return okflag;
 }
@@ -314,3 +314,12 @@ update_file_dependencies(const string &cache_filename) {
   }
 }
 
+////////////////////////////////////////////////////////////////////
+//     Function: PPDirectoryTree::write_model_dependencies
+//       Access: Public
+//  Description:
+////////////////////////////////////////////////////////////////////
+void PPDirectoryTree::
+write_model_dependencies() {
+  _root->r_write_model_dependency_cache();
+}
