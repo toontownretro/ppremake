@@ -1010,7 +1010,7 @@ get_depended_models(const string &str_filename) {
 }
 
 ////////////////////////////////////////////////////////////////////
-//     Function: PPDirectory::read_model_dependency_cache
+//     Function: PPDirectory::write_model_dependency_cache
 //       Access: Public
 //  Description:
 ////////////////////////////////////////////////////////////////////
@@ -1095,6 +1095,18 @@ read_model_dependency_cache() {
       tokenize_whitespace(line, words);
 
       Filename filename = words[0];
+
+      Filename fullpath(get_fullpath(), filename);
+      if (!fullpath.is_regular_file()) {
+        // If the filename in the dependency cache no longer exists, don't add it
+        // to our table, and note that the dependency cache was updated.  This will
+        // make us write a new cache file with the no-longer-existing files removed.
+        if (verbose) {
+          cerr << "Removing old file " << filename << " from model dependency cache\n";
+        }
+        _model_dependencies_updated = true;
+        continue;
+      }
 
       // This is the timestamp of the file at the last time we determined
       // dependencies.
