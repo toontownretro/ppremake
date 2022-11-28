@@ -1877,7 +1877,6 @@ expand_shell(const string &params) {
   close(pd[1]);
   bool child_done = false;
   bool pipe_closed = false;
-  string output;
 
   while (!child_done && !pipe_closed) {
     static const int buffer_size = 1024;
